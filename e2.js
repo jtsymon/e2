@@ -2,10 +2,10 @@
 /*global e2 */
 function move_item(x, y, item) {
     "use strict";
-    e2.mouse.item.element.style.left = x + "px";
-    e2.mouse.item.element.style.top = y + "px";
-    e2.mouse.item.x = x;
-    e2.mouse.item.y = y;
+    item.element.style.left = x + "px";
+    item.element.style.top = y + "px";
+    item.x = x;
+    item.y = y;
 }
 
 function update_carried(x, y) {
@@ -83,6 +83,11 @@ function abs_pos(x, y, container) {
         container = container.parent;
     }
     return { x: x, y: y };
+}
+
+function prevent(e) {
+    "use strict";
+    e.preventDefault();
 }
 
 window.onmouseup = function (e) {
@@ -174,12 +179,20 @@ window.onkeyup = function (e) {
 
 window.onload = function () {
     "use strict";
-    var traverse_tree = function (parent) {
+    window.oncontextmenu = prevent;
+    function traverse_tree(parent) {
         var i,
             rect,
             item,
             container;
         for (i = 0; i < parent.element.children.length; i += 1) {
+            // make sure the node doesn't inherit a position from its parent
+            if (parent.element.children[i].style.left === "") {
+                parent.element.children[i].style.left = "0px";
+            }
+            if (parent.element.children[i].style.top === "") {
+                parent.element.children[i].style.top = "0px";
+            }
             rect = parent.element.children[i].getBoundingClientRect();
             item = {
                 type: parent.element.children[i].nodeName === "DIV" ? 0 : 1,   // 0 if the item is a container
@@ -219,7 +232,7 @@ window.onload = function () {
             }
             traverse_tree(item);
         }
-    };
+    }
     window.e2 = {
         mouse: {
             item: null,     // carried item
