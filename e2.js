@@ -1,24 +1,26 @@
 /*jslint browser: true, devel: true */
 /*global e2 */
-function move_item(x, y, item) {
-    "use strict";
-    item.element.style.left = x + "px";
-    item.element.style.top = y + "px";
-    item.x = x;
-    item.y = y;
-}
 
-function update_carried(x, y) {
+var Item;
+
+/**
+ * @param {number} x
+ * @param {number} y
+ */
+function updateCarried(x, y) {
     "use strict";
     if (e2.mouse.item !== null) {
-        move_item(x - e2.mouse.ox, y - e2.mouse.oy, e2.mouse.item);
+        e2.mouse.item.move(x - e2.mouse.ox, y - e2.mouse.oy);
     }
 }
 
 /**
  * Searches the element structure and finds the highest level container
+ * @param {number} x
+ * @param {number} y
+ * @param {Item} exclude
  */
-function find_container(x, y, exclude) {
+function findContainer(x, y, exclude) {
     "use strict";
     function internal_find_container(x, y, parent) {
         var i,
@@ -51,7 +53,12 @@ function find_container(x, y, exclude) {
     return internal_find_container(x, y, e2.root);
 }
 
-function in_container(x, y, container) {
+/**
+ * @param {number} x
+ * @param {number} y
+ * @param {Item} container
+ */
+function inContainer(x, y, container) {
     "use strict";
     if (container === null) {
         return false;
@@ -65,7 +72,12 @@ function in_container(x, y, container) {
     return x >= container.x && x <= container.x + container.width && y >= container.y && y <= container.y + container.height;
 }
 
-function client_pos(x, y, container) {
+/**
+ * @param {number} x
+ * @param {number} y
+ * @param {Item} container
+ */
+function clientPos(x, y, container) {
     "use strict";
     while (container !== e2.root) {
         x -= container.x;
@@ -75,7 +87,12 @@ function client_pos(x, y, container) {
     return { x: x, y: y };
 }
 
-function abs_pos(x, y, container) {
+/**
+ * @param {number} x
+ * @param {number} y
+ * @param {Item} container
+ */
+function absPos(x, y, container) {
     "use strict";
     while (container !== e2.root) {
         x += container.x;
@@ -85,156 +102,101 @@ function abs_pos(x, y, container) {
     return { x: x, y: y };
 }
 
+/**
+ * @param {Event} e
+ */
 function prevent(e) {
     "use strict";
     e.preventDefault();
 }
 
+/**
+ * @param {MouseEvent} e
+ */
 window.onmouseup = function (e) {
     "use strict";
-    if (e2.mouse.item === null) {
-        if (typeof e.target.e2_item !== 'undefined' && e.target.e2_item !== null) {
-            e2.mouse.item = e.target.e2_item;
-            e2.mouse.ox = e.clientX - e.target.e2_item.x;
-            e2.mouse.oy = e.clientY - e.target.e2_item.y;
-            update_carried(e.clientX, e.clientY);
+    switch (e.button) {
+    case 0:
+        console.log("left button");
+        break;
+    case 1:
+        console.log("middle button");
+        if (e2.mouse.item === null) {
+            if (typeof e.target.e2_item !== 'undefined') {
+                console.log(e.target);
+                e2.mouse.item = e.target.e2_item;
+                e2.mouse.ox = e.clientX - e.target.e2_item.x;
+                e2.mouse.oy = e.clientY - e.target.e2_item.y;
+                updateCarried(e.clientX, e.clientY);
+            }
+        } else {
+            updateCarried(e.clientX, e.clientY);
+            e2.mouse.item.placeDown(e.clientX, e.clientY);
+            e2.mouse.item = null;
         }
-    } else {
-        update_carried(e.clientX, e.clientY);
-        var item = e2.mouse.item,
-            new_parent = find_container(e.clientX, e.clientY, item),
-            pos,
-            index;
-        if (new_parent !== item.parent) {
-            window.console.log(item.parent);
-            window.console.log(new_parent);
-            // find the correct position
-            pos = abs_pos(item.x, item.y, item.parent);
-            pos = client_pos(pos.x, pos.y, new_parent);
-            // remove the item from it's old parent
-            item.parent.element.removeChild(item.element);
-            index = item.parent.children.indexOf(item);
-            if (index !== -1) {
-                item.parent.children.splice(index, 1);
-            }
-            if (item.type === 0) {
-                index = item.parent_container.containers.indexOf(item);
-                if (index !== -1) {
-                    item.parent_container.containers.splice(index, 1);
-                }
-            }
-            // add the item to it's new parent
-            item.parent = new_parent;
-            item.depth = new_parent.depth + 1;
-            new_parent.element.appendChild(item.element);
-            new_parent.children.push(item);
-            // correct the position (because position values are relative)
-            move_item(pos.x, pos.y, item);
-            // update the container tree
-            if (item.type === 0) {
-                pos = {
-                    left: item.x,
-                    right: item.x + item.width,
-                    top: item.y,
-                    bottom: item.y + item.height
-                };
-                console.log("test");
-                console.log(new_parent);
-                console.log(pos);
-                while (new_parent.parent !== null &&
-                        (pos.left < 0 || pos.right > new_parent.width ||
-                         pos.top < 0 || pos.bottom > new_parent.height)) {
-                    pos.left += new_parent.x;
-                    pos.right += new_parent.x;
-                    pos.top += new_parent.y;
-                    pos.bottom += new_parent.y;
-                    new_parent = new_parent.parent;
-                    console.log("up");
-                    console.log(new_parent);
-                    console.log(pos);
-                }
-                item.parent_container = new_parent;
-                new_parent.containers.push(item);
+        break;
+    case 2:
+        console.log("right button");
+        if (e2.mouse.item === null) {
+            if (typeof e.target.e2_item !== 'undefined') {
+                var item = e.target.e2_item.clone();
+                e2.mouse.item = item;
+                e2.mouse.ox = e.clientX - item.x;
+                e2.mouse.oy = e.clientY - item.y;
+                updateCarried(e.clientX, e.clientY);
             }
         }
-        e2.mouse.item = null;
-    }
-};
-
-window.onmousemove = function (e) {
-    "use strict";
-    update_carried(e.clientX, e.clientY);
-    e2.mouse.x = e.clientX;
-    e2.mouse.y = e.clientY;
-};
-
-window.onkeyup = function (e) {
-    "use strict";
-    switch (e.keyCode) {
-    case 80: // p
-        window.console.log(find_container(e2.mouse.x, e2.mouse.y));
         break;
     }
 };
 
+/**
+ * @param {MouseEvent} e
+ */
+window.onmousemove = function (e) {
+    "use strict";
+    updateCarried(e.clientX, e.clientY);
+    e2.mouse.x = e.clientX;
+    e2.mouse.y = e.clientY;
+};
+
+/**
+ * @param {KeyboardEvent} e
+ */
+window.onkeyup = function (e) {
+    "use strict";
+    switch (e.keyCode) {
+    case 80: // p
+        window.console.log(findContainer(e2.mouse.x, e2.mouse.y));
+        break;
+    }
+};
+
+/**
+ * Creates items beneath an element
+ * WARNING: Will create duplicate items if the item has already been accounted for
+ * @param {Element} parent
+ */
+function createItems(parent) {
+    "use strict";
+    var i,
+        rect,
+        item,
+        container,
+        pos;
+    for (i = 0; i < parent.element.children.length; i += 1) {
+        createItems(new Item(parent, parent.element.children[i]));
+    }
+}
+
 window.onload = function () {
     "use strict";
     window.oncontextmenu = prevent;
-    function traverse_tree(parent) {
-        var i,
-            rect,
-            item,
-            container;
-        for (i = 0; i < parent.element.children.length; i += 1) {
-            // make sure the node doesn't inherit a position from its parent
-            if (parent.element.children[i].style.left === "") {
-                parent.element.children[i].style.left = "0px";
-            }
-            if (parent.element.children[i].style.top === "") {
-                parent.element.children[i].style.top = "0px";
-            }
-            rect = parent.element.children[i].getBoundingClientRect();
-            item = {
-                type: parent.element.children[i].nodeName === "DIV" ? 0 : 1,   // 0 if the item is a container
-                depth: parent.depth + 1,
-                element: parent.element.children[i],                           // reference to the DOM element
-                parent: parent,
-                parent_container: null,
-                children: [],
-                containers: [],
-                x: rect.left,
-                y: rect.top,
-                width: rect.width,
-                height: rect.height
-            };
-            parent.element.children[i].e2_item = item;
-            parent.element.children[i].style.position = "absolute";
-            parent.children.push(item);
-            if (item.type === 0) {
-                container = parent;
-                rect = {
-                    left: rect.left,
-                    right: rect.right,
-                    top: rect.top,
-                    bottom: rect.bottom
-                };
-                while (container.parent !== null &&
-                        (rect.left < 0 || rect.right > container.width ||
-                         rect.top < 0 || rect.bottom > container.height)) {
-                    rect.left += container.x;
-                    rect.right += container.x;
-                    rect.top += container.y;
-                    rect.bottom += container.y;
-                    container = container.parent;
-                }
-                item.parent_container = container;
-                container.containers.push(item);
-            }
-            traverse_tree(item);
-        }
-    }
     window.e2 = {
         mouse: {
+            /**
+             * @type {Item}
+             */
             item: null,     // carried item
             ox: 0,          // offset-x of carried item
             oy: 0,          // offset-y of carried item
@@ -252,5 +214,132 @@ window.onload = function () {
             y: 0
         }
     };
-    traverse_tree(e2.root);
+    createItems(e2.root);
+};
+
+/**
+ * @this {Item}
+ * @constructor
+ * @param {Item} parent
+ * @param {Element} element
+ */
+function Item(parent, element) {
+    "use strict";
+    this.type = element.nodeName === "DIV" ? 0 : 1;
+    this.depth = parent.depth + 1;
+    this.element = element;
+    this.parent = parent;
+    this.parent_container = null;
+    this.children = [];
+    this.containers = [];
+    if (element.style.left === "") {
+        element.style.left = "0px";
+    }
+    if (element.style.top === "") {
+        element.style.top = "0px";
+    }
+    var rect = element.getBoundingClientRect();
+    this.width = rect.width;
+    this.height = rect.height;
+    rect = clientPos(rect.left, rect.top, parent);
+    this.x = rect.x;
+    this.y = rect.y;
+    element.e2_item = this;
+    element.style.position = "absolute";
+    parent.children.push(this);
+    this.findContainer();
+}
+
+/**
+ * @this {Item}
+ * @param {number} x
+ * @param {number} y
+ */
+Item.prototype.move = function (x, y) {
+    "use strict";
+    this.element.style.left = x + "px";
+    this.element.style.top = y + "px";
+    this.x = x;
+    this.y = y;
+};
+
+/**
+ * @this {Item}
+ */
+Item.prototype.findContainer = function () {
+    "use strict";
+    if (this.type !== 0) {
+        return;
+    }
+    var index,
+        container = this.parent,
+        rect;
+    if (this.parent_container !== null) {
+        index = this.parent_container.containers.indexOf(this);
+        if (index !== -1) {
+            this.parent_container.containers.splice(index, 1);
+        }
+    }
+    rect = {
+        left: this.x,
+        right: this.x + this.width,
+        top: this.y,
+        bottom: this.y + this.height
+    };
+    while (container.parent !== null &&
+            (rect.left < 0 || rect.right > container.width ||
+                         rect.top < 0 || rect.bottom > container.height)) {
+        rect.left += container.x;
+        rect.right += container.x;
+        rect.top += container.y;
+        rect.bottom += container.y;
+        container = container.parent;
+    }
+    this.parent_container = container;
+    container.containers.push(this);
+};
+
+/**
+ * @this {Item}
+ * @param {number} x
+ * @param {number} y
+ */
+Item.prototype.placeDown = function (x, y) {
+    "use strict";
+    var new_parent = findContainer(x, y, this),
+        pos,
+        index;
+    if (new_parent !== this.parent) {
+        // find the correct position
+        pos = absPos(this.x, this.y, this.parent);
+        pos = clientPos(pos.x, pos.y, new_parent);
+        // remove the item from it's old parent
+        this.parent.element.removeChild(this.element);
+        index = this.parent.children.indexOf(this);
+        if (index !== -1) {
+            this.parent.children.splice(index, 1);
+        }
+        // add the item to it's new parent
+        this.parent = new_parent;
+        this.depth = new_parent.depth + 1;
+        new_parent.element.appendChild(this.element);
+        new_parent.children.push(this);
+        // correct the position (because position values are relative)
+        this.move(pos.x, pos.y);
+        // update the container tree
+        this.findContainer();
+    }
+};
+
+/**
+ * @this {Item}
+ */
+Item.prototype.clone = function () {
+    "use strict";
+    var element = this.element.cloneNode(true),
+        clone;
+    this.parent.element.appendChild(element);
+    clone = new Item(this.parent, element);
+    createItems(clone);
+    return clone;
 };
