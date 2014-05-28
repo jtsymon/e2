@@ -1,12 +1,3 @@
-var e2 = [];
-e2.mouse = {
-    item: null,     // carried item
-    ox: 0,          // offset-x of carried item
-    oy: 0,          // offset-y of carried item
-    x:  0,          // last detected mouse-x
-    y:  0           // last detected mouse-y
-};
-
 function move_item(x, y, item) {
     "use strict";
     e2.mouse.item.element.style.left = x + "px";
@@ -23,37 +14,40 @@ function update_carried(x, y) {
 }
 
 /**
- * Searches the element structure and finds the lowest level container
+ * Searches the element structure and finds the highest level container
  */
-function find_container(x, y, exclude, parent) {
+function find_container(x, y, exclude) {
     "use strict";
-    var i,
-        child = null,
-        container;
-    // window.console.log("Looking for items intersecting (" + x + "," + y + ")");
-    if (typeof parent === 'undefined' || parent === null) {
-        parent = null;
-        container = e2.root;
-    } else {
-        container = parent.children;
-        x -= parent.x;
-        y -= parent.y;
-    }
-    for (i = 0; i < container.length; i += 1) {
-        if (container[i] === exclude) {
-            window.console.log("EXCLUDED");
-            window.console.log(container[i]);
-        }
-        if (container[i].type === 0 && container[i] !== exclude && x >= container[i].x && x <= container[i].x + container[i].width && y >= container[i].y && y <= container[i].y + container[i].height) {
-            child = find_container(x, y, exclude, container[i]);
-            if (child === null) {
-                return container[i];
-            } else {
-                return child;
+    function internal_find_container(x, y, parent) {
+        var i,
+            best = parent,
+            next,
+            cx,
+            cy;
+        for (i = 0; i < parent.containers.length; i += 1) {
+            next = parent.containers[i];
+            if (next == exclude) {
+                continue;
+            }
+            cx = x;
+            cy = y;
+            while (next.parent !== parent) {
+                cx -= next.parent.x;
+                cy -= next.parent.y;
+                next = next.parent;
+            }
+            next = parent.containers[i];
+            if (cx >= next.x && cx <= next.x + next.width &&
+                    cy >= next.y && cy <= next.y + next.height) {
+                next = internal_find_container(cx, cy, next);
+                if (next.depth > best.depth) {
+                    best = next;
+                }
             }
         }
+        return best;
     }
-    return parent;
+    return internal_find_container(x, y, e2.root);
 }
 
 function in_container(x, y, container) {
@@ -72,7 +66,7 @@ function in_container(x, y, container) {
 
 function client_pos(x, y, container) {
     "use strict";
-    while (container !== null) {
+    while (container !== e2.root) {
         x -= container.x;
         y -= container.y;
         container = container.parent;
@@ -82,7 +76,7 @@ function client_pos(x, y, container) {
 
 function abs_pos(x, y, container) {
     "use strict";
-    while (container !== null) {
+    while (container !== e2.root) {
         x += container.x;
         y += container.y;
         container = container.parent;
@@ -101,41 +95,55 @@ window.onmouseup = function (e) {
         }
     } else {
         update_carried(e.clientX, e.clientY);
-        var old_parent = e2.mouse.item.parent,
-            rect = e2.mouse.item.element.getBoundingClientRect(),
-            new_parent = find_container(rect.left, rect.top, e2.mouse.item),
+        var item = e2.mouse.item,
+            new_parent = find_container(e.clientX, e.clientY, item),
             pos,
             index;
-        if (new_parent !== old_parent) {
+        if (new_parent !== item.parent) {
+            window.console.log(item.parent);
             window.console.log(new_parent);
+            // find the correct position
+            pos = abs_pos(item.x, item.y, item.parent);
+            pos = client_pos(pos.x, pos.y, new_parent);
             // remove the item from it's old parent
-            if (old_parent === null) {
-                document.body.removeChild(e2.mouse.item.element);
-                index = e2.root.indexOf(e2.mouse.item);
+            item.parent.element.removeChild(item.element);
+            index = item.parent.children.indexOf(item);
+            if (index !== -1) {
+                item.parent.children.splice(index, 1);
+            }
+            if (item.type === 0) {
+                index = item.parent_container.containers.indexOf(item);
                 if (index !== -1) {
-                    e2.root.splice(index, 1);
-                }
-            } else {
-                old_parent.element.removeChild(e2.mouse.item.element);
-                index = old_parent.children.indexOf(e2.mouse.item);
-                if (index !== -1) {
-                    old_parent.children.splice(index, 1);
+                    item.parent_container.containers.splice(index, 1);
                 }
             }
             // add the item to it's new parent
-            if (new_parent === null) {
-                e2.mouse.item.parent = null;
-                document.body.appendChild(e2.mouse.item.element);
-                e2.root.push(e2.mouse.item);
-            } else {
-                e2.mouse.item.parent = new_parent;
-                new_parent.element.appendChild(e2.mouse.item.element);
-                new_parent.children.push(e2.mouse.item);
-            }
+            item.parent = new_parent;
+            new_parent.element.appendChild(item.element);
+            new_parent.children.push(item);
             // correct the position (because position values are relative)
-            pos = abs_pos(e2.mouse.item.x, e2.mouse.item.y, old_parent);
-            pos = client_pos(pos.x, pos.y, new_parent);
-            move_item(pos.x, pos.y, e2.mouse.item);
+            move_item(pos.x, pos.y, item);
+            // update the container tree
+            if (item.type === 0) {
+                pos = {
+                    left: item.x,
+                    right: item.x + item.width,
+                    top: item.y,
+                    bottom: item.y + item.height
+                };
+                while (new_parent.parent !== null &&
+                        (pos.left < 0 || pos.right > new_parent.width ||
+                         pos.top < 0 || pos.bottom > new_parent.height)) {
+                    pos.left += new_parent.x;
+                    pos.right += new_parent.x;
+                    pos.top += new_parent.y;
+                    pos.bottom += new_parent.y;
+                    new_parent = new_parent.parent;
+                }
+                item.parent_container = new_parent;
+                item.depth = new_parent.depth + 1;
+                new_parent.containers.push(item);
+            }
         }
         e2.mouse.item = null;
     }
@@ -159,32 +167,69 @@ window.onkeyup = function (e) {
 
 window.onload = function () {
     "use strict";
-    var traverse_tree = function (parent, element, container) {
+    var traverse_tree = function (parent) {
         var i,
             rect,
-            item;
-        if (parent !== null) {
-            element = parent.element;
-            container = parent.children;
-        }
-        for (i = 0; i < element.children.length; i += 1) {
-            rect = element.children[i].getBoundingClientRect();
+            item,
+            container;
+        for (i = 0; i < parent.element.children.length; i += 1) {
+            rect = parent.element.children[i].getBoundingClientRect();
             item = {
-                type: element.children[i].nodeName === "DIV" ? 0 : 1,   // 0 if the item is a container
-                element: element.children[i],                           // reference to the DOM element
-                parent: parent,                                         // reference to parent item
-                children: [],                                           // array of child items
-                x: rect.left,                                           // last known x position
-                y: rect.top,                                            // last known y position
-                width: rect.width,                                      // width of bounding box
-                height: rect.height                                     // height of bounding box
+                type: parent.element.children[i].nodeName === "DIV" ? 0 : 1,   // 0 if the item is a container
+                depth: parent.depth + 1,
+                element: parent.element.children[i],                           // reference to the DOM element
+                parent: parent,
+                parent_container: null,
+                children: [],
+                containers: [],
+                x: rect.left,
+                y: rect.top,
+                width: rect.width,
+                height: rect.height
             };
-            element.children[i].e2_item = item;
-            element.children[i].style.position = "absolute";
-            container.push(item);
+            parent.element.children[i].e2_item = item;
+            parent.element.children[i].style.position = "absolute";
+            parent.children.push(item);
+            if (item.type === 0) {
+                container = parent;
+                rect = {
+                    left: rect.left,
+                    right: rect.right,
+                    top: rect.top,
+                    bottom: rect.bottom
+                };
+                while (container.parent !== null &&
+                        (rect.left < 0 || rect.right > container.width ||
+                         rect.top < 0 || rect.bottom > container.height)) {
+                    rect.left += container.x;
+                    rect.right += container.x;
+                    rect.top += container.y;
+                    rect.bottom += container.y;
+                    container = container.parent;
+                }
+                item.parent_container = container;
+                container.containers.push(item);
+            }
             traverse_tree(item);
         }
     };
-    e2.root = [];
-    traverse_tree(null, document.body, e2.root);
+    window.e2 = [];
+    e2.mouse = {
+        item: null,     // carried item
+    	ox: 0,          // offset-x of carried item
+    	oy: 0,          // offset-y of carried item
+    	x:  0,          // last detected mouse-x
+    	y:  0           // last detected mouse-y
+    };
+    e2.root = {
+        type: 0,
+        depth: 0,
+        element: document.body,
+        parent: null,
+        children: [],
+        containers: [],
+        x: 0,
+        y: 0
+    };
+    traverse_tree(e2.root);
 };
