@@ -1,3 +1,5 @@
+/*jslint browser: true, devel: true */
+/*global e2 */
 function move_item(x, y, item) {
     "use strict";
     e2.mouse.item.element.style.left = x + "px";
@@ -26,22 +28,21 @@ function find_container(x, y, exclude) {
             cy;
         for (i = 0; i < parent.containers.length; i += 1) {
             next = parent.containers[i];
-            if (next == exclude) {
-                continue;
-            }
-            cx = x;
-            cy = y;
-            while (next.parent !== parent) {
-                cx -= next.parent.x;
-                cy -= next.parent.y;
-                next = next.parent;
-            }
-            next = parent.containers[i];
-            if (cx >= next.x && cx <= next.x + next.width &&
-                    cy >= next.y && cy <= next.y + next.height) {
-                next = internal_find_container(cx, cy, next);
-                if (next.depth > best.depth) {
-                    best = next;
+            if (next !== exclude) {
+                cx = x;
+                cy = y;
+                while (next.parent !== parent) {
+                    next = next.parent;
+                    cx -= next.x;
+                    cy -= next.y;
+                }
+                next = parent.containers[i];
+                if (cx >= next.x && cx <= next.x + next.width &&
+                        cy >= next.y && cy <= next.y + next.height) {
+                    next = internal_find_container(cx, cy, next);
+                    if (next.depth > best.depth) {
+                        best = next;
+                    }
                 }
             }
         }
@@ -119,6 +120,7 @@ window.onmouseup = function (e) {
             }
             // add the item to it's new parent
             item.parent = new_parent;
+            item.depth = new_parent.depth + 1;
             new_parent.element.appendChild(item.element);
             new_parent.children.push(item);
             // correct the position (because position values are relative)
@@ -131,6 +133,9 @@ window.onmouseup = function (e) {
                     top: item.y,
                     bottom: item.y + item.height
                 };
+                console.log("test");
+                console.log(new_parent);
+                console.log(pos);
                 while (new_parent.parent !== null &&
                         (pos.left < 0 || pos.right > new_parent.width ||
                          pos.top < 0 || pos.bottom > new_parent.height)) {
@@ -139,9 +144,11 @@ window.onmouseup = function (e) {
                     pos.top += new_parent.y;
                     pos.bottom += new_parent.y;
                     new_parent = new_parent.parent;
+                    console.log("up");
+                    console.log(new_parent);
+                    console.log(pos);
                 }
                 item.parent_container = new_parent;
-                item.depth = new_parent.depth + 1;
                 new_parent.containers.push(item);
             }
         }
@@ -213,23 +220,24 @@ window.onload = function () {
             traverse_tree(item);
         }
     };
-    window.e2 = [];
-    e2.mouse = {
-        item: null,     // carried item
-    	ox: 0,          // offset-x of carried item
-    	oy: 0,          // offset-y of carried item
-    	x:  0,          // last detected mouse-x
-    	y:  0           // last detected mouse-y
-    };
-    e2.root = {
-        type: 0,
-        depth: 0,
-        element: document.body,
-        parent: null,
-        children: [],
-        containers: [],
-        x: 0,
-        y: 0
+    window.e2 = {
+        mouse: {
+            item: null,     // carried item
+            ox: 0,          // offset-x of carried item
+            oy: 0,          // offset-y of carried item
+            x:  0,          // last detected mouse-x
+            y:  0           // last detected mouse-y
+        },
+        root: {
+            type: 0,
+            depth: 0,
+            element: document.body,
+            parent: null,
+            children: [],
+            containers: [],
+            x: 0,
+            y: 0
+        }
     };
     traverse_tree(e2.root);
 };
