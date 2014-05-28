@@ -2,17 +2,29 @@
 /*global e2 */
 
 var Item;
-
-/**
- * @param {number} x
- * @param {number} y
- */
-function updateCarried(x, y) {
-    "use strict";
-    if (e2.mouse.item !== null) {
-        e2.mouse.item.move(x - e2.mouse.ox, y - e2.mouse.oy);
-    }
-}
+var e2 = {
+    mouse: {
+        /**
+         * @type {Item}
+         */
+        item: null,     // carried item
+        left: false,
+        middle: false,
+        right: false,
+        ox: 0,          // offset-x of carried item
+        oy: 0,          // offset-y of carried item
+        x:  0,          // last detected mouse-x
+        y:  0,          // last detected mouse-y
+        update: function () {
+            "use strict";
+            if (e2.mouse.item !== null) {
+                e2.mouse.item.move(e2.mouse.x - e2.mouse.ox, e2.mouse.y - e2.mouse.oy);
+            }
+        }
+    },
+    root: null
+};
+var actions = {};
 
 /**
  * Searches the element structure and finds the highest level container
@@ -103,76 +115,6 @@ function absPos(x, y, container) {
 }
 
 /**
- * @param {Event} e
- */
-function prevent(e) {
-    "use strict";
-    e.preventDefault();
-}
-
-/**
- * @param {MouseEvent} e
- */
-window.onmouseup = function (e) {
-    "use strict";
-    switch (e.button) {
-    case 0:
-        console.log("left button");
-        break;
-    case 1:
-        console.log("middle button");
-        if (e2.mouse.item === null) {
-            if (typeof e.target.e2_item !== 'undefined') {
-                console.log(e.target);
-                e2.mouse.item = e.target.e2_item;
-                e2.mouse.ox = e.clientX - e.target.e2_item.x;
-                e2.mouse.oy = e.clientY - e.target.e2_item.y;
-                updateCarried(e.clientX, e.clientY);
-            }
-        } else {
-            updateCarried(e.clientX, e.clientY);
-            e2.mouse.item.placeDown(e.clientX, e.clientY);
-            e2.mouse.item = null;
-        }
-        break;
-    case 2:
-        console.log("right button");
-        if (e2.mouse.item === null) {
-            if (typeof e.target.e2_item !== 'undefined') {
-                var item = e.target.e2_item.clone();
-                e2.mouse.item = item;
-                e2.mouse.ox = e.clientX - item.x;
-                e2.mouse.oy = e.clientY - item.y;
-                updateCarried(e.clientX, e.clientY);
-            }
-        }
-        break;
-    }
-};
-
-/**
- * @param {MouseEvent} e
- */
-window.onmousemove = function (e) {
-    "use strict";
-    updateCarried(e.clientX, e.clientY);
-    e2.mouse.x = e.clientX;
-    e2.mouse.y = e.clientY;
-};
-
-/**
- * @param {KeyboardEvent} e
- */
-window.onkeyup = function (e) {
-    "use strict";
-    switch (e.keyCode) {
-    case 80: // p
-        window.console.log(findContainer(e2.mouse.x, e2.mouse.y));
-        break;
-    }
-};
-
-/**
  * Creates items beneath an element
  * WARNING: Will create duplicate items if the item has already been accounted for
  * @param {Element} parent
@@ -189,30 +131,151 @@ function createItems(parent) {
     }
 }
 
+/**
+ * @param {Event} e
+ */
+function prevent(e) {
+    "use strict";
+    e.preventDefault();
+}
+
+/**
+ * @param {Item} item
+ */
+actions.pickup = function (item) {
+    "use strict";
+    if (typeof item === 'undefined') {
+        return;
+    }
+    e2.mouse.item = item;
+    e2.mouse.ox = e2.mouse.x - item.x;
+    e2.mouse.oy = e2.mouse.y - item.y;
+    e2.mouse.update();
+};
+
+/**
+ * @param {Item} item
+ */
+actions.clone = function (item) {
+    "use strict";
+    if (typeof item === 'undefined') {
+        return;
+    }
+    actions.pickup(item.clone());
+};
+
+actions.place = function () {
+    "use strict";
+    e2.mouse.update();
+    e2.mouse.item.placeDown(e2.mouse.x, e2.mouse.y);
+    e2.mouse.item = null;
+};
+
+actions.stamp = function () {
+    "use strict";
+    console.log("stamping");
+};
+
+actions.remove = function () {
+    "use strict";
+    console.log("removing");
+    e2.mouse.item.remove();
+    e2.mouse.item = null;
+};
+
+/**
+ * @param {MouseEvent} e
+ */
+window.onmousedown = function (e) {
+    "use strict";
+    switch (e.button) {
+    case 0:
+        e2.mouse.left = true;
+        break;
+    case 1:
+        e2.mouse.middle = true;
+        break;
+    case 2:
+        e2.mouse.right = true;
+        break;
+	}
+};
+
+/**
+ * @param {MouseEvent} e
+ */
+window.onmouseup = function (e) {
+    "use strict";
+    // delete
+    switch (e.button) {
+    case 0:
+        e2.mouse.left = false;
+        break;
+    case 1:
+        e2.mouse.middle = false;
+        if (e2.mouse.right && !e2.mouse.left) {
+            if (e2.mouse.item !== null) {
+                actions.remove();
+            }
+        } else {
+            if (e2.mouse.item !== null) {
+                actions.place();
+            } else {
+                actions.pickup(e.target.e2_item);
+            }
+        }
+        break;
+    case 2:
+        e2.mouse.right = false;
+        if (e2.mouse.middle && !e2.mouse.left) {
+            if (e2.mouse.item !== null) {
+                actions.remove();
+            }
+        } else {
+            if (e2.mouse.item !== null) {
+                actions.stamp();
+            } else {
+                actions.clone(e.target.e2_item);
+            }
+        }
+        break;
+    }
+};
+
+/**
+ * @param {MouseEvent} e
+ */
+window.onmousemove = function (e) {
+    "use strict";
+    e2.mouse.x = e.clientX;
+    e2.mouse.y = e.clientY;
+    e2.mouse.update();
+};
+
+/**
+ * @param {KeyboardEvent} e
+ */
+window.onkeyup = function (e) {
+    "use strict";
+    switch (e.keyCode) {
+    case 80: // p
+        window.console.log(findContainer(e2.mouse.x, e2.mouse.y));
+        break;
+    }
+};
+
 window.onload = function () {
     "use strict";
     window.oncontextmenu = prevent;
-    window.e2 = {
-        mouse: {
-            /**
-             * @type {Item}
-             */
-            item: null,     // carried item
-            ox: 0,          // offset-x of carried item
-            oy: 0,          // offset-y of carried item
-            x:  0,          // last detected mouse-x
-            y:  0           // last detected mouse-y
-        },
-        root: {
-            type: 0,
-            depth: 0,
-            element: document.body,
-            parent: null,
-            children: [],
-            containers: [],
-            x: 0,
-            y: 0
-        }
+    window.e2.root = {
+        type: 0,
+        depth: 0,
+        element: document.body,
+        parent: null,
+        children: [],
+        containers: [],
+        x: 0,
+        y: 0
     };
     createItems(e2.root);
 };
@@ -342,4 +405,33 @@ Item.prototype.clone = function () {
     clone = new Item(this.parent, element);
     createItems(clone);
     return clone;
+};
+
+/**
+ * @this {Item}
+ */
+Item.prototype.remove = function () {
+    "use strict";
+    /**
+     * Remove any references to removed items (container references)
+     * @param {Item} item
+     */
+    function internal_remove(item) {
+        var index;
+        if (item.parent_container !== null) {
+            index = item.parent_container.containers.indexOf(item);
+            if (index !== -1) {
+                item.parent_container.containers.splice(index, 1);
+            }
+        }
+        for (index = 0; index < item.children.length; index += 1) {
+            internal_remove(item.children[index]);
+        }
+    }
+    this.element.parentElement.removeChild(this.element);
+    var index = this.parent.children.indexOf(this);
+    if (index !== -1) {
+        this.parent.children.splice(index, 1);
+    }
+    internal_remove(this);
 };
