@@ -27,45 +27,6 @@ var e2 = {
 var actions = {};
 
 /**
- * Searches the element structure and finds the highest level container
- * @param {number} x
- * @param {number} y
- * @param {Item} exclude
- */
-function findContainer(x, y, exclude) {
-    "use strict";
-    function internal_find_container(x, y, parent) {
-        var i,
-            best = parent,
-            next,
-            cx,
-            cy;
-        for (i = 0; i < parent.containers.length; i += 1) {
-            next = parent.containers[i];
-            if (next !== exclude) {
-                cx = x;
-                cy = y;
-                while (next.parent !== parent) {
-                    next = next.parent;
-                    cx -= next.x;
-                    cy -= next.y;
-                }
-                next = parent.containers[i];
-                if (cx >= next.x && cx <= next.x + next.width &&
-                        cy >= next.y && cy <= next.y + next.height) {
-                    next = internal_find_container(cx, cy, next);
-                    if (next.depth > best.depth) {
-                        best = next;
-                    }
-                }
-            }
-        }
-        return best;
-    }
-    return internal_find_container(x, y, e2.root);
-}
-
-/**
  * @param {number} x
  * @param {number} y
  * @param {Item} container
@@ -136,8 +97,11 @@ function createItems(parent) {
  */
 function getItem(element) {
     "use strict";
-    while (!element.e2_item) {
+    while (element && !element.e2_item) {
         element = element.parentElement;
+    }
+    if (!element) {
+        return;
     }
     return element.e2_item;
 }
@@ -177,6 +141,9 @@ actions.clone = function (item) {
 
 actions.place = function () {
     "use strict";
+    if (!e2.mouse.item) {
+        return;
+    }
     e2.mouse.update();
     e2.mouse.item.placeDown(e2.mouse.x, e2.mouse.y);
     e2.mouse.item = null;
@@ -184,14 +151,21 @@ actions.place = function () {
 
 actions.stamp = function () {
     "use strict";
-    console.log("stamping");
+    if (!e2.mouse.item) {
+        return;
+    }
+    e2.mouse.item.clone().placeDown(e2.mouse.x, e2.mouse.y, e2.mouse.item);
 };
 
-actions.remove = function () {
+/**
+ * @param {Item} item
+ */
+actions.remove = function (item) {
     "use strict";
-    console.log("removing");
-    e2.mouse.item.remove();
-    e2.mouse.item = null;
+    item.remove();
+    if (item === e2.mouse.item) {
+        e2.mouse.item = null;
+    }
 };
 
 /**
@@ -220,14 +194,19 @@ window.onmouseup = function (e) {
     // delete
     switch (e.button) {
     case 0:
+        if (!e2.mouse.left) {
+            break;
+        }
         e2.mouse.left = false;
         break;
     case 1:
+        if (!e2.mouse.middle) {
+            break;
+        }
         e2.mouse.middle = false;
         if (e2.mouse.right && !e2.mouse.left) {
-            if (e2.mouse.item !== null) {
-                actions.remove();
-            }
+            actions.remove(e2.mouse.item || getItem(e.target));
+            e2.mouse.right = false;
         } else {
             if (e2.mouse.item !== null) {
                 actions.place();
@@ -237,11 +216,13 @@ window.onmouseup = function (e) {
         }
         break;
     case 2:
+        if (!e2.mouse.right) {
+            break;
+        }
         e2.mouse.right = false;
         if (e2.mouse.middle && !e2.mouse.left) {
-            if (e2.mouse.item !== null) {
-                actions.remove();
-            }
+            actions.remove(e2.mouse.item || getItem(e.target));
+            e2.mouse.middle = false;
         } else {
             if (e2.mouse.item !== null) {
                 actions.stamp();
@@ -268,11 +249,6 @@ window.onmousemove = function (e) {
  */
 window.onkeyup = function (e) {
     "use strict";
-    switch (e.keyCode) {
-    case 80: // p
-        window.console.log(findContainer(e2.mouse.x, e2.mouse.y));
-        break;
-    }
 };
 
 window.onload = function () {
@@ -360,7 +336,7 @@ Item.prototype.findContainer = function () {
         top: this.y,
         bottom: this.y + this.height
     };
-    while (container.parent !== null &&
+    while (container.parent &&
             (rect.left < 0 || rect.right > container.width ||
                          rect.top < 0 || rect.bottom > container.height)) {
         rect.left += container.x;
@@ -377,12 +353,49 @@ Item.prototype.findContainer = function () {
  * @this {Item}
  * @param {number} x
  * @param {number} y
+ * @param {Item} exclude
  */
-Item.prototype.placeDown = function (x, y) {
+Item.prototype.placeDown = function (x, y, exclude) {
     "use strict";
-    var new_parent = findContainer(x, y, this),
+    var new_parent,
         pos,
-        index;
+        index,
+        also_this = this;
+    /**
+     * Searches the element structure and finds the highest level container
+     * @param {number} x
+     * @param {number} y
+     * @param {Item} parent
+     */
+    function internal_find_container(x, y, parent) {
+        var i,
+            best = parent,
+            next,
+            cx,
+            cy;
+        for (i = 0; i < parent.containers.length; i += 1) {
+            next = parent.containers[i];
+            if (next !== also_this && next !== exclude) {
+                cx = x;
+                cy = y;
+                while (next.parent !== parent) {
+                    next = next.parent;
+                    cx -= next.x;
+                    cy -= next.y;
+                }
+                next = parent.containers[i];
+                if (cx >= next.x && cx <= next.x + next.width &&
+                        cy >= next.y && cy <= next.y + next.height) {
+                    next = internal_find_container(cx, cy, next);
+                    if (next.depth > best.depth) {
+                        best = next;
+                    }
+                }
+            }
+        }
+        return best;
+    }
+    new_parent = internal_find_container(x, y, e2.root);
     if (new_parent !== this.parent) {
         // find the correct position
         pos = absPos(this.x, this.y, this.parent);
@@ -429,7 +442,7 @@ Item.prototype.remove = function () {
      */
     function internal_remove(item) {
         var index;
-        if (item.parent_container !== null) {
+        if (item.parent_container) {
             index = item.parent_container.containers.indexOf(item);
             if (index !== -1) {
                 item.parent_container.containers.splice(index, 1);
