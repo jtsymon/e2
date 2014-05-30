@@ -37,19 +37,20 @@ function absPos(x, y, container) {
 
 /**
  * Sets position:relative on elements that are children of a non-container element
- * @param {Element} parent
+ * @param {Item} parent
  */
-function nonContainer(parent) {
+function nonContainer(item) {
     "use strict";
     function relativePosition(parent) {
         var i;
         for (i = 0; i < parent.children.length; i += 1) {
             parent.children[i].style.position = "relative";
+            parent.children[i].e2_owner = item;
             relativePosition(parent.children[i]);
         }
     }
-    parent.contentEditable = true;
-    relativePosition(parent);
+    item.element.contentEditable = true;
+    relativePosition(item.element);
 }
 
 /**
@@ -59,7 +60,7 @@ function nonContainer(parent) {
 function createItems(parent) {
     "use strict";
     if (!parent.isContainer) {
-        nonContainer(parent.element);
+        nonContainer(parent);
         return;
     }
     var i,
@@ -90,6 +91,19 @@ function getItem(element) {
 }
 
 /**
+ * Finds the value of an inherited attribute
+ * @param {Element} element
+ * @param {String} attribute
+ */
+function getAttr(element, attribute) {
+    "use strict";
+    while (element.parentElement && element[attribute] === "inherit") {
+        element = element.parentElement;
+    }
+    return element[attribute];
+}
+
+/**
  * @param {Event} e
  */
 function prevent(e) {
@@ -102,6 +116,52 @@ function prevent(e) {
  */
 window.onkeyup = function (e) {
     "use strict";
+    return true;
+};
+
+/**
+ * @param {KeyboardEvent} e
+ */
+window.onkeydown = function (e) {
+    "use strict";
+    // start typing wherever the cursor is
+    function positionCaret() {
+        var caret,
+            node = Mouse.hover;
+        if (!node || getAttr(node, "contentEditable").toLowerCase() !== "true") {
+            return false;
+        }
+        if (node.nodeType !== node.TEXT_NODE) {
+            node = node.firstChild;
+            if (!node || node.nodeType !== node.TEXT_NODE) {
+                return false;
+            }
+        }
+        if (document.caretPositionFromPoint) {
+            caret = document.caretPositionFromPoint(Mouse.x, Mouse.y).offset;
+        } else if (document.caretRangeFromPoint) {
+            caret = document.caretRangeFromPoint(Mouse.x, Mouse.y).startOffset;
+        } else {
+            return false;
+        }
+        window.getSelection().collapse(node, caret);
+        return true;
+    }
+    if (!Mouse.edit) {
+        Mouse.edit = Mouse.hover;
+        if (!positionCaret()) {
+            console.log("TODO: create new text item in this case");
+        }
+    }
+    return true;
+};
+
+/**
+ * @param {KeyboardEvent} e
+ */
+window.onkeypress = function (e) {
+    "use strict";
+    return true;
 };
 
 window.Mouse = {
@@ -123,6 +183,9 @@ window.Mouse = {
     right: false,
     x: 0,
     y: 0,
+    edit: null,
+    hover: null,
+    focus: null,
     update: function () {
         "use strict";
         if (Mouse.carried.item !== null) {
@@ -214,6 +277,7 @@ window.Mouse = {
         var selection = window.getSelection();
         if (e.target !== Mouse.click.element || Math.abs(e.clientX - Mouse.click.x) > 10 || Math.abs(e.clientY - Mouse.click.y) > 10 || selection.toString().length > 0) {
             console.log("Mouse moved too far, aborting action");
+            // deselect selected text when we click
             if (!selection.containsNode(e.target, true) ||
                     selection.anchorNode.nodeName === "DIV" || selection.anchorNode.nodeName === "HTML" ||
                     selection.focusNode.nodeName === "DIV" || selection.focusNode.nodeName === "HTML" ||
@@ -266,6 +330,37 @@ window.Mouse = {
         "use strict";
         Mouse.x = e.clientX;
         Mouse.y = e.clientY;
+        if (Mouse.hover !== e.target) {
+            Mouse.hover = e.target;
+            if (Mouse.hover) {
+                // focus the hovered element
+                if (Mouse.hover.e2_owner) {
+                    if (!Mouse.focus) {
+                        Mouse.focus = Mouse.hover.e2_owner.element;
+                        Mouse.focus.focus();
+                    } else if (Mouse.focus !== Mouse.hover.e2_owner.element) {
+                        Mouse.focus.blur();
+                        Mouse.focus = Mouse.hover.e2_owner.element;
+                        Mouse.focus.focus();
+                    }
+                } else if (Mouse.hover.contentEditable) {
+                    if (!Mouse.focus) {
+                        Mouse.focus = Mouse.hover;
+                        Mouse.focus.focus();
+                    } else if (Mouse.focus !== Mouse.hover) {
+                        Mouse.focus.blur();
+                        Mouse.focus = Mouse.hover;
+                        Mouse.focus.focus();
+                    }
+                }
+                if (Mouse.edit && (!Mouse.hover.e2_owner || Mouse.hover.e2_owner !== Mouse.edit.e2_owner)) {
+                    // if we move out of the element we're editing, defocus it
+                    Mouse.edit.blur();
+                    window.getSelection().collapse(document.body, 0);
+                    Mouse.edit = null;
+                }
+            }
+        }
         Mouse.update();
     }
 };
