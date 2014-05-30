@@ -1,30 +1,11 @@
 /*jslint browser: true, devel: true */
 /*global e2 */
 
-var Item;
-var e2 = {
-    mouse: {
-        /**
-         * @type {Item}
-         */
-        item: null,     // carried item
-        left: false,
-        middle: false,
-        right: false,
-        ox: 0,          // offset-x of carried item
-        oy: 0,          // offset-y of carried item
-        x:  0,          // last detected mouse-x
-        y:  0,          // last detected mouse-y
-        update: function () {
-            "use strict";
-            if (e2.mouse.item !== null) {
-                e2.mouse.item.move(e2.mouse.x - e2.mouse.ox, e2.mouse.y - e2.mouse.oy);
-            }
-        }
-    },
-    root: null
-};
-var actions = {};
+var Item,
+    e2 = {
+        mouse: null,
+        root: null
+    };
 
 /**
  * @param {number} x
@@ -115,60 +96,6 @@ function prevent(e) {
 }
 
 /**
- * @param {Item} item
- */
-actions.pickup = function (item) {
-    "use strict";
-    if (!item) {
-        return;
-    }
-    e2.mouse.item = item;
-    e2.mouse.ox = e2.mouse.x - item.x;
-    e2.mouse.oy = e2.mouse.y - item.y;
-    e2.mouse.update();
-};
-
-/**
- * @param {Item} item
- */
-actions.clone = function (item) {
-    "use strict";
-    if (!item) {
-        return;
-    }
-    actions.pickup(item.clone());
-};
-
-actions.place = function () {
-    "use strict";
-    if (!e2.mouse.item) {
-        return;
-    }
-    e2.mouse.update();
-    e2.mouse.item.placeDown(e2.mouse.x, e2.mouse.y);
-    e2.mouse.item = null;
-};
-
-actions.stamp = function () {
-    "use strict";
-    if (!e2.mouse.item) {
-        return;
-    }
-    e2.mouse.item.clone().placeDown(e2.mouse.x, e2.mouse.y, e2.mouse.item);
-};
-
-/**
- * @param {Item} item
- */
-actions.remove = function (item) {
-    "use strict";
-    item.remove();
-    if (item === e2.mouse.item) {
-        e2.mouse.item = null;
-    }
-};
-
-/**
  * @param {MouseEvent} e
  */
 window.onmousedown = function (e) {
@@ -205,13 +132,13 @@ window.onmouseup = function (e) {
         }
         e2.mouse.middle = false;
         if (e2.mouse.right && !e2.mouse.left) {
-            actions.remove(e2.mouse.item || getItem(e.target));
+            e2.mouse.remove(e.target);
             e2.mouse.right = false;
         } else {
             if (e2.mouse.item !== null) {
-                actions.place();
+                e2.mouse.place();
             } else {
-                actions.pickup(getItem(e.target));
+                e2.mouse.pickup(getItem(e.target));
             }
         }
         break;
@@ -221,13 +148,13 @@ window.onmouseup = function (e) {
         }
         e2.mouse.right = false;
         if (e2.mouse.middle && !e2.mouse.left) {
-            actions.remove(e2.mouse.item || getItem(e.target));
+            e2.mouse.remove(e.target);
             e2.mouse.middle = false;
         } else {
             if (e2.mouse.item !== null) {
-                actions.stamp();
+                e2.mouse.stamp();
             } else {
-                actions.clone(getItem(e.target));
+                e2.mouse.clone(getItem(e.target));
             }
         }
         break;
@@ -263,6 +190,83 @@ window.onload = function () {
     };
     document.body.e2_item = e2.root;
     createItems(e2.root);
+};
+
+e2.mouse = {
+    /**
+     * @type {Item}
+     */
+    item: null,     // carried item
+    left: false,
+    middle: false,
+    right: false,
+    ox: 0,
+    oy: 0,
+    x:  0,
+    y:  0,
+    z: null,        // previous z of carried item
+    update: function () {
+        "use strict";
+        if (this.item !== null) {
+            this.item.move(this.x - this.ox, this.y - this.oy);
+        }
+    },
+    /**
+     * @param {Item} item
+     */
+    pickup: function (item) {
+        "use strict";
+        if (!item) {
+            return;
+        }
+        this.item = item;
+        this.ox = this.x - item.x;
+        this.oy = this.y - item.y;
+        this.z = item.element.style.zIndex;
+        item.element.style.zIndex = "9001";
+        this.update();
+    },
+    /**
+     * @param {Item} item
+     */
+    clone: function (item) {
+        "use strict";
+        if (!item) {
+            return;
+        }
+        this.pickup(item.clone());
+    },
+    place: function () {
+        "use strict";
+        if (!this.item) {
+            return;
+        }
+        this.update();
+        this.item.element.style.zIndex = this.z;
+        this.item.placeDown(this.x, this.y);
+        this.item = null;
+    },
+    stamp: function () {
+        "use strict";
+        if (!this.item) {
+            return;
+        }
+        var clone = this.item.clone();
+        clone.element.style.zIndex = this.z;
+        clone.placeDown(this.x, this.y, this.item);
+    },
+    /**
+     * @param {Element} target
+     */
+    remove: function (target) {
+        "use strict";
+        var item = this.item || getItem(target);
+        if (!item) {
+            return;
+        }
+        item.remove();
+        this.item = null;
+    }
 };
 
 /**
