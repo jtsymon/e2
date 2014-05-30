@@ -2,10 +2,8 @@
 /*global e2 */
 
 var Item,
-    e2 = {
-        mouse: null,
-        root: null
-    };
+    Mouse,
+    Root;
 
 /**
  * @param {number} x
@@ -14,7 +12,7 @@ var Item,
  */
 function clientPos(x, y, container) {
     "use strict";
-    while (container !== e2.root) {
+    while (container !== Root) {
         x -= container.x;
         y -= container.y;
         container = container.parent;
@@ -29,7 +27,7 @@ function clientPos(x, y, container) {
  */
 function absPos(x, y, container) {
     "use strict";
-    while (container !== e2.root) {
+    while (container !== Root) {
         x += container.x;
         y += container.y;
         container = container.parent;
@@ -41,13 +39,17 @@ function absPos(x, y, container) {
  * Sets position:relative on elements that are children of a non-container element
  * @param {Element} parent
  */
-function relativePosition(parent) {
+function nonContainer(parent) {
     "use strict";
-    var i;
-    for (i = 0; i < parent.children.length; i += 1) {
-        parent.children[i].style.position = "relative";
-        relativePosition(parent.children[i]);
+    function relativePosition(parent) {
+        var i;
+        for (i = 0; i < parent.children.length; i += 1) {
+            parent.children[i].style.position = "relative";
+            relativePosition(parent.children[i]);
+        }
     }
+    parent.contentEditable = true;
+    relativePosition(parent);
 }
 
 /**
@@ -57,7 +59,7 @@ function relativePosition(parent) {
 function createItems(parent) {
     "use strict";
     if (!parent.isContainer) {
-        relativePosition(parent.element);
+        nonContainer(parent.element);
         return;
     }
     var i,
@@ -96,119 +98,35 @@ function prevent(e) {
 }
 
 /**
- * @param {MouseEvent} e
- */
-window.onmousedown = function (e) {
-    "use strict";
-    switch (e.button) {
-    case 0:
-        e2.mouse.left = true;
-        break;
-    case 1:
-        e2.mouse.middle = true;
-        break;
-    case 2:
-        e2.mouse.right = true;
-        break;
-	}
-};
-
-/**
- * @param {MouseEvent} e
- */
-window.onmouseup = function (e) {
-    "use strict";
-    // delete
-    switch (e.button) {
-    case 0:
-        if (!e2.mouse.left) {
-            break;
-        }
-        e2.mouse.left = false;
-        break;
-    case 1:
-        if (!e2.mouse.middle) {
-            break;
-        }
-        e2.mouse.middle = false;
-        if (e2.mouse.right && !e2.mouse.left) {
-            e2.mouse.remove(e.target);
-            e2.mouse.right = false;
-        } else {
-            if (e2.mouse.item !== null) {
-                e2.mouse.place();
-            } else {
-                e2.mouse.pickup(getItem(e.target));
-            }
-        }
-        break;
-    case 2:
-        if (!e2.mouse.right) {
-            break;
-        }
-        e2.mouse.right = false;
-        if (e2.mouse.middle && !e2.mouse.left) {
-            e2.mouse.remove(e.target);
-            e2.mouse.middle = false;
-        } else {
-            if (e2.mouse.item !== null) {
-                e2.mouse.stamp();
-            } else {
-                e2.mouse.clone(getItem(e.target));
-            }
-        }
-        break;
-    }
-};
-
-/**
- * @param {MouseEvent} e
- */
-window.onmousemove = function (e) {
-    "use strict";
-    e2.mouse.x = e.clientX;
-    e2.mouse.y = e.clientY;
-    e2.mouse.update();
-};
-
-/**
  * @param {KeyboardEvent} e
  */
 window.onkeyup = function (e) {
     "use strict";
 };
 
-window.onload = function () {
-    "use strict";
-    window.oncontextmenu = prevent;
-    window.e2.root = {
-        isContainer: true,
-        depth: 0,
-        element: document.body,
-        children: [],
-        containers: []
-    };
-    document.body.e2_item = e2.root;
-    createItems(e2.root);
-};
-
-e2.mouse = {
+window.Mouse = {
     /**
      * @type {Item}
      */
-    item: null,     // carried item
+    carried: {
+        item: null,
+        startX: 0,
+        startY: 0,
+        originalZ: ""
+    },
+    click: {
+        x: 0,
+        y: 0,
+        element: null
+    },
     left: false,
-    middle: false,
     right: false,
-    ox: 0,
-    oy: 0,
-    x:  0,
-    y:  0,
-    z: null,        // previous z of carried item
+    x: 0,
+    y: 0,
     update: function () {
         "use strict";
-        if (this.item !== null) {
-            this.item.move(this.x - this.ox, this.y - this.oy);
+        if (Mouse.carried.item !== null) {
+            Mouse.carried.item.move(Mouse.x - Mouse.carried.startX, Mouse.y - Mouse.carried.startY);
         }
     },
     /**
@@ -219,12 +137,12 @@ e2.mouse = {
         if (!item) {
             return;
         }
-        this.item = item;
-        this.ox = this.x - item.x;
-        this.oy = this.y - item.y;
-        this.z = item.element.style.zIndex;
+        Mouse.carried.item = item;
+        Mouse.carried.startX = Mouse.x - item.x;
+        Mouse.carried.startY = Mouse.y - item.y;
+        Mouse.carried.originalZ = item.element.style.zIndex;
         item.element.style.zIndex = "9001";
-        this.update();
+        Mouse.update();
     },
     /**
      * @param {Item} item
@@ -234,38 +152,121 @@ e2.mouse = {
         if (!item) {
             return;
         }
-        this.pickup(item.clone());
+        Mouse.pickup(item.clone());
     },
     place: function () {
         "use strict";
-        if (!this.item) {
+        if (!Mouse.carried.item) {
             return;
         }
-        this.update();
-        this.item.element.style.zIndex = this.z;
-        this.item.placeDown(this.x, this.y);
-        this.item = null;
+        Mouse.update();
+        Mouse.carried.item.element.style.zIndex = Mouse.carried.originalZ;
+        Mouse.carried.item.placeDown(Mouse.x, Mouse.y);
+        Mouse.carried.item = null;
     },
     stamp: function () {
         "use strict";
-        if (!this.item) {
+        if (!Mouse.carried.item) {
             return;
         }
-        var clone = this.item.clone();
-        clone.element.style.zIndex = this.z;
-        clone.placeDown(this.x, this.y, this.item);
+        var clone = Mouse.carried.item.clone();
+        clone.element.style.zIndex = Mouse.carried.originalZ;
+        clone.placeDown(Mouse.x, Mouse.y, Mouse.carried.item);
     },
     /**
      * @param {Element} target
      */
     remove: function (target) {
         "use strict";
-        var item = this.item || getItem(target);
+        var item = Mouse.carried.item || getItem(target);
         if (!item) {
             return;
         }
         item.remove();
-        this.item = null;
+        Mouse.carried.item = null;
+    },
+    /**
+     * @param {MouseEvent} e
+     */
+    down: function (e) {
+        "use strict";
+        if (!Mouse.left && !Mouse.right) {
+            Mouse.click.x = Mouse.x;
+            Mouse.click.y = Mouse.y;
+            Mouse.click.element = e.target;
+        }
+        switch (e.button) {
+        case 0:
+            Mouse.left = true;
+            break;
+        case 2:
+            Mouse.right = true;
+            break;
+        }
+        var item = getItem(e.target);
+        return !(!item || item.isContainer || e.target.textContent.length === 0);
+    },
+    /**
+     * @param {MouseEvent} e
+     */
+    up: function (e) {
+        "use strict";
+        var selection = window.getSelection();
+        if (e.target !== Mouse.click.element || Math.abs(e.clientX - Mouse.click.x) > 10 || Math.abs(e.clientY - Mouse.click.y) > 10 || selection.toString().length > 0) {
+            console.log("Mouse moved too far, aborting action");
+            if (!selection.containsNode(e.target, true) ||
+                    selection.anchorNode.nodeName === "DIV" || selection.anchorNode.nodeName === "HTML" ||
+                    selection.focusNode.nodeName === "DIV" || selection.focusNode.nodeName === "HTML" ||
+                    e.target.nodeName === "DIV" || e.target.nodeName === "HTML") {
+                selection.removeAllRanges();
+            }
+            Mouse.left = false;
+            Mouse.right = false;
+            return;
+        }
+        switch (e.button) {
+        case 0:
+            if (!Mouse.left) {
+                break;
+            }
+            Mouse.left = false;
+            if (Mouse.right) {
+                Mouse.remove(e.target);
+                Mouse.right = false;
+            } else {
+                if (Mouse.carried.item !== null) {
+                    Mouse.place();
+                } else {
+                    Mouse.pickup(getItem(e.target));
+                }
+            }
+            break;
+        case 2:
+            if (!Mouse.right) {
+                break;
+            }
+            Mouse.right = false;
+            if (Mouse.left) {
+                Mouse.remove(e.target);
+                Mouse.left = false;
+            } else {
+                if (Mouse.carried.item !== null) {
+                    Mouse.stamp();
+                } else {
+                    Mouse.clone(getItem(e.target));
+                }
+            }
+            break;
+        }
+    },
+    /**
+     * @param {MouseEvent} e
+     */
+    move: function (e) {
+        "use strict";
+        Mouse.x = e.clientX;
+        Mouse.y = e.clientY;
+        Mouse.update();
     }
 };
 
@@ -399,7 +400,7 @@ Item.prototype.placeDown = function (x, y, exclude) {
         }
         return best;
     }
-    new_parent = internal_find_container(x, y, e2.root);
+    new_parent = internal_find_container(x, y, Root);
     if (new_parent !== this.parent) {
         // find the correct position
         pos = absPos(this.x, this.y, this.parent);
@@ -462,4 +463,21 @@ Item.prototype.remove = function () {
         this.parent.children.splice(index, 1);
     }
     internal_remove(this);
+};
+
+window.onload = function () {
+    "use strict";
+    window.oncontextmenu = prevent;
+    window.onmousedown = Mouse.down;
+    window.onmouseup = Mouse.up;
+    window.onmousemove = Mouse.move;
+    window.Root = {
+        isContainer: true,
+        depth: 0,
+        element: document.body,
+        children: [],
+        containers: []
+    };
+    document.body.e2_item = Root;
+    createItems(Root);
 };
