@@ -70,25 +70,6 @@ function findContainer(x, y, exclude) {
  * @param {number} y
  * @param {Item} container
  */
-function inContainer(x, y, container) {
-    "use strict";
-    if (container === null) {
-        return false;
-    }
-    var parent = container.parent;
-    while (parent !== null) {
-        x -= parent.x;
-        y -= parent.y;
-        parent = parent.parent;
-    }
-    return x >= container.x && x <= container.x + container.width && y >= container.y && y <= container.y + container.height;
-}
-
-/**
- * @param {number} x
- * @param {number} y
- * @param {Item} container
- */
 function clientPos(x, y, container) {
     "use strict";
     while (container !== e2.root) {
@@ -115,20 +96,50 @@ function absPos(x, y, container) {
 }
 
 /**
- * Creates items beneath an element
- * WARNING: Will create duplicate items if the item has already been accounted for
+ * Sets position:relative on elements that are children of a non-container element
  * @param {Element} parent
+ */
+function relativePosition(parent) {
+    "use strict";
+    var i;
+    for (i = 0; i < parent.children.length; i += 1) {
+        parent.children[i].style.position = "relative";
+        relativePosition(parent.children[i]);
+    }
+}
+
+/**
+ * Creates items beneath an element
+ * @param {Item} parent
  */
 function createItems(parent) {
     "use strict";
+    if (!parent.isContainer) {
+        relativePosition(parent.element);
+        return;
+    }
     var i,
         rect,
         item,
         container,
         pos;
     for (i = 0; i < parent.element.children.length; i += 1) {
-        createItems(new Item(parent, parent.element.children[i]));
+        if (!parent.element.children[i].e2_item) {
+            createItems(new Item(parent, parent.element.children[i]));
+        }
     }
+}
+
+/**
+ * Gets the parent item for an element that is a child of a non-container element
+ * @param {Element} element
+ */
+function getItem(element) {
+    "use strict";
+    while (!element.e2_item) {
+        element = element.parentElement;
+    }
+    return element.e2_item;
 }
 
 /**
@@ -144,7 +155,7 @@ function prevent(e) {
  */
 actions.pickup = function (item) {
     "use strict";
-    if (typeof item === 'undefined') {
+    if (!item) {
         return;
     }
     e2.mouse.item = item;
@@ -158,7 +169,7 @@ actions.pickup = function (item) {
  */
 actions.clone = function (item) {
     "use strict";
-    if (typeof item === 'undefined') {
+    if (!item) {
         return;
     }
     actions.pickup(item.clone());
@@ -221,7 +232,7 @@ window.onmouseup = function (e) {
             if (e2.mouse.item !== null) {
                 actions.place();
             } else {
-                actions.pickup(e.target.e2_item);
+                actions.pickup(getItem(e.target));
             }
         }
         break;
@@ -235,7 +246,7 @@ window.onmouseup = function (e) {
             if (e2.mouse.item !== null) {
                 actions.stamp();
             } else {
-                actions.clone(e.target.e2_item);
+                actions.clone(getItem(e.target));
             }
         }
         break;
@@ -268,15 +279,13 @@ window.onload = function () {
     "use strict";
     window.oncontextmenu = prevent;
     window.e2.root = {
-        type: 0,
+        isContainer: true,
         depth: 0,
         element: document.body,
-        parent: null,
         children: [],
-        containers: [],
-        x: 0,
-        y: 0
+        containers: []
     };
+    document.body.e2_item = e2.root;
     createItems(e2.root);
 };
 
@@ -288,13 +297,11 @@ window.onload = function () {
  */
 function Item(parent, element) {
     "use strict";
-    this.type = element.nodeName === "DIV" ? 0 : 1;
+    this.isContainer = (element.nodeName === "DIV");
     this.depth = parent.depth + 1;
     this.element = element;
     this.parent = parent;
-    this.parent_container = null;
     this.children = [];
-    this.containers = [];
     if (element.style.left === "") {
         element.style.left = "0px";
     }
@@ -310,7 +317,11 @@ function Item(parent, element) {
     element.e2_item = this;
     element.style.position = "absolute";
     parent.children.push(this);
-    this.findContainer();
+    if (this.isContainer) {
+        this.parent_container = null;
+        this.containers = [];
+        this.findContainer();
+    }
 }
 
 /**
@@ -331,7 +342,7 @@ Item.prototype.move = function (x, y) {
  */
 Item.prototype.findContainer = function () {
     "use strict";
-    if (this.type !== 0) {
+    if (!this.isContainer) {
         return;
     }
     var index,
