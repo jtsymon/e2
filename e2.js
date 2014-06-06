@@ -12,10 +12,12 @@ var Item,
  */
 function clientPos(x, y, container) {
     "use strict";
-    while (container !== Root) {
-        x -= container.x;
-        y -= container.y;
-        container = container.parent;
+    if (!!container) {
+        while (container !== Root) {
+            x -= container.x;
+            y -= container.y;
+            container = container.parent;
+        }
     }
     return { x: x, y: y };
 }
@@ -27,10 +29,12 @@ function clientPos(x, y, container) {
  */
 function absPos(x, y, container) {
     "use strict";
-    while (container !== Root) {
-        x += container.x;
-        y += container.y;
-        container = container.parent;
+    if (!!container) {
+        while (container !== Root) {
+            x += container.x;
+            y += container.y;
+            container = container.parent;
+        }
     }
     return { x: x, y: y };
 }
@@ -78,6 +82,7 @@ function createItems(parent) {
 /**
  * Gets the parent item for an element that is a child of a non-container element
  * @param {Element} element
+ * @return {Item}
  */
 function getItem(element) {
     "use strict";
@@ -85,9 +90,14 @@ function getItem(element) {
         element = element.parentElement;
     }
     if (!element) {
-        return;
+        return null;
     }
     return element.e2_item;
+}
+
+function getItemOrRoot(element) {
+    "use strict";
+    return getItem(element) || Root;
 }
 
 /**
@@ -150,7 +160,19 @@ window.onkeydown = function (e) {
     if (!Mouse.edit) {
         Mouse.edit = Mouse.hover;
         if (!positionCaret()) {
-            console.log("TODO: create new text item in this case");
+            var parent = getItemOrRoot(e.target),
+                element = document.createElement('P'),
+                item,
+                pos;
+            element.contentEditable = "true";
+            parent.element.appendChild(element);
+            item = new Item(parent, element);
+            pos = clientPos(Mouse.x - item.width / 2, Mouse.y - item.height / 2, item.parent);
+            item.move(pos.x, pos.y);
+            element.focus();
+            Mouse.hover = element;
+            Mouse.focus = element;
+            Mouse.edit = element;
         }
     }
     return true;
@@ -253,6 +275,8 @@ window.Mouse = {
      */
     down: function (e) {
         "use strict";
+        Mouse.x = e.clientX;
+        Mouse.y = e.clientY;
         if (!Mouse.left && !Mouse.right) {
             Mouse.click.x = Mouse.x;
             Mouse.click.y = Mouse.y;
@@ -274,6 +298,8 @@ window.Mouse = {
      */
     up: function (e) {
         "use strict";
+        Mouse.x = e.clientX;
+        Mouse.y = e.clientY;
         var selection = window.getSelection();
         if (e.target !== Mouse.click.element || Math.abs(e.clientX - Mouse.click.x) > 10 || Math.abs(e.clientY - Mouse.click.y) > 10 || selection.toString().length > 0) {
             console.log("Mouse moved too far, aborting action");
@@ -355,8 +381,18 @@ window.Mouse = {
                 }
                 if (Mouse.edit && (!Mouse.hover.e2_owner || Mouse.hover.e2_owner !== Mouse.edit.e2_owner)) {
                     // if we move out of the element we're editing, defocus it
+                    if (Mouse.edit.textContent.trim().length <= 0) {
+                        if (Mouse.edit.e2_item) {
+                            Mouse.edit.e2_item.remove();
+                        } else {
+                            Mouse.edit.parentElement.removeChild(Mouse.edit);
+                        }
+                    }
                     Mouse.edit.blur();
-                    window.getSelection().collapse(document.body, 0);
+                    var sel = window.getSelection();
+                    if (sel.anchorNode) {
+                        sel.collapse(sel.anchorNode, 0);
+                    }
                     Mouse.edit = null;
                 }
             }
