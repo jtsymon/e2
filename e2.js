@@ -95,6 +95,21 @@ function getItem(element) {
     return element.e2_item;
 }
 
+function getContainer(element) {
+    "use strict";
+    while (element && !element.e2_item) {
+        element = element.parentElement;
+    }
+    if (!element || !element.e2_item) {
+        return Root;
+    }
+    var item = element.e2_item;
+    while (item && !item.isContainer) {
+        item = item.parent;
+    }
+    return item || Root;
+}
+
 function getItemOrRoot(element) {
     "use strict";
     return getItem(element) || Root;
@@ -160,6 +175,7 @@ window.onkeydown = function (e) {
     if (!Mouse.edit) {
         Mouse.edit = Mouse.hover;
         if (!positionCaret()) {
+            // create a text element under the cursor
             var parent = getItemOrRoot(e.target),
                 element = document.createElement('P'),
                 item,
@@ -300,7 +316,11 @@ window.Mouse = {
         "use strict";
         Mouse.x = e.clientX;
         Mouse.y = e.clientY;
-        var selection = window.getSelection();
+        var selection = window.getSelection(),
+            parent,
+            element,
+            item,
+            pos;
         if (e.target !== Mouse.click.element || Math.abs(e.clientX - Mouse.click.x) > 10 || Math.abs(e.clientY - Mouse.click.y) > 10 || selection.toString().length > 0) {
             console.log("Mouse moved too far, aborting action");
             // deselect selected text when we click
@@ -314,6 +334,7 @@ window.Mouse = {
             Mouse.right = false;
             return;
         }
+        console.log(e.button);
         switch (e.button) {
         case 0:
             if (!Mouse.left) {
@@ -336,12 +357,26 @@ window.Mouse = {
                 break;
             }
             Mouse.right = false;
+            console.log("RIGHT");
             if (Mouse.left) {
                 Mouse.remove(e.target);
                 Mouse.left = false;
             } else {
                 if (Mouse.carried.item !== null) {
                     Mouse.stamp();
+                } else if (e.altKey) {
+                    // create a container under the mouse
+                    // (currently haven't implemented resizing)
+                    parent = getContainer(e.target);
+                    element = document.createElement('DIV');
+                    element.style.width = "100px";
+                    element.style.height = "100px";
+                    element.style.backgroundColor = "rgb(" + Math.floor(Math.random() * 255) + "," + Math.floor(Math.random() * 255) + "," + Math.floor(Math.random() * 255) + ")";
+                    parent.element.appendChild(element);
+                    item = new Item(parent, element);
+                    pos = clientPos(Mouse.x - item.width / 2, Mouse.y - item.height / 2, item.parent);
+                    item.move(pos.x, pos.y);
+                    Mouse.hover = element;
                 } else {
                     Mouse.clone(getItem(e.target));
                 }
