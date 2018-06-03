@@ -73,48 +73,53 @@ class Expeditee {
         root.ondrop = this.tryDrop.bind(this);
     }
     
-    update() {
+    leftClick(e) {
         if (this.carried) {
             this.carried.update();
-        }
-    }
-    
-    pickup(item) {
-        if (!item || item == this.root) {
-            return;
-        }
-        this.carried = new CarriedItem(this, item);
-        this.update();
-    }
-    
-    clone(item) {
-        if (!item || item == this.root) {
-            return;
-        }
-        this.pickup(item.clone());
-    }
-    
-    place() {
-        this.update();
-        if (this.carried) {
             this.carried.place();
+        } else {
+            var item = Item.find(e.target);
+            if (item && item != this.root) {
+                this.carried = new CarriedItem(this, item);
+            }
         }
     }
     
-    stamp() {
-        this.update();
+    rightClick(e) {
         if (this.carried) {
+            this.carried.update();
             this.carried.stamp();
+        } else if (e.altKey) {
+            // create a container under the mouse
+            // (currently haven't implemented resizing)
+            var parent = Item.container(e.target) || this.root;
+            var element = document.createElement('DIV');
+            element.style.width = "100px";
+            element.style.height = "100px";
+            element.style.backgroundColor = "rgb(" + Math.floor(Math.random() * 255) + "," + Math.floor(Math.random() * 255) + "," + Math.floor(Math.random() * 255) + ")";
+            parent.element.appendChild(element);
+            var item = new Item(this, element, parent);
+            var pos = item.clientPos(this.x - item.width / 2, this.y - item.height / 2);
+            item.move(pos.x, pos.y);
+            this.hover = element;
+        } else {
+            var item = Item.find(e.target);
+            if (item && item != this.root) {
+                this.carried = new CarriedItem(this, item.clone());
+            }
         }
     }
     
-    remove(target) {
-        var item = this.carried ? this.carried.item : Item.find(target);
-        if (!item || item == this.root) {
-            return;
+    leftRightClick(e) {
+        if (this.carried) {
+            this.carried.item.remove();
+            this.carried = null;
+        } else {
+            var item = Item.find(e.target);
+            if (item && item != this.root) {
+                item.remove();
+            }
         }
-        item.remove();
-        this.carried = null;
     }
     
     mouseDown(e) {
@@ -166,14 +171,10 @@ class Expeditee {
             }
             this.left = false;
             if (this.right) {
-                this.remove(e.target);
                 this.right = false;
+                this.leftRightClick(e);
             } else {
-                if (this.carried !== null) {
-                    this.place();
-                } else {
-                    this.pickup(Item.find(e.target));
-                }
+                this.leftClick(e);
             }
             break;
         case 2:
@@ -183,27 +184,10 @@ class Expeditee {
             this.right = false;
             console.log("RIGHT");
             if (this.left) {
-                this.remove(e.target);
                 this.left = false;
+                this.leftRightClick(e);
             } else {
-                if (this.carried !== null) {
-                    this.stamp();
-                } else if (e.altKey) {
-                    // create a container under the mouse
-                    // (currently haven't implemented resizing)
-                    parent = Item.container(e.target) || this.root;
-                    element = document.createElement('DIV');
-                    element.style.width = "100px";
-                    element.style.height = "100px";
-                    element.style.backgroundColor = "rgb(" + Math.floor(Math.random() * 255) + "," + Math.floor(Math.random() * 255) + "," + Math.floor(Math.random() * 255) + ")";
-                    parent.element.appendChild(element);
-                    item = new Item(this, element, parent);
-                    pos = item.clientPos(this.x - item.width / 2, this.y - item.height / 2);
-                    item.move(pos.x, pos.y);
-                    this.hover = element;
-                } else {
-                    this.clone(Item.find(e.target));
-                }
+                this.rightClick(e);
             }
             break;
         }
@@ -253,7 +237,9 @@ class Expeditee {
                 }
             }
         }
-        this.update();
+        if (this.carried) {
+            this.carried.update();
+        }
     }
     
     positionCaret() {
