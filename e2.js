@@ -18,14 +18,35 @@ function returnTrue(e) {
     return true;
 }
 
+class CarriedItem {
+    constructor(context, item) {
+        this.context = context;
+        this.item = item;
+        this.startX = context.x - item.x;
+        this.startY = context.y - item.y;
+        this.startZ = item.element.style.zIndex;
+        item.element.style.zIndex = "1000000";
+    }
+    
+    update() {
+        this.item.move(this.context.x - this.startX, this.context.y - this.startY);
+    }
+    
+    place() {
+        this.item.element.style.zIndex = this.startZ;
+        this.item.placeDown(this.context.x, this.context.y);
+        this.context.carried = null;
+    }
+    
+    stamp() {
+        var clone = this.item.clone();
+        clone.element.style.zIndex = this.startZ;
+        clone.placeDown(this.context.x, this.context.y, this.item);
+    }
+}
+
 class Expeditee {
     constructor(root) {
-        this.carried = {
-            item: null,
-            startX: 0,
-            startY: 0,
-            originalZ: ""
-        };
         this.click = {
             x: 0,
             y: 0,
@@ -35,6 +56,7 @@ class Expeditee {
         this.right = false;
         this.x = 0;
         this.y = 0;
+        this.carried = null;
         this.edit = null;
         this.hover = null;
         this.focus = null;
@@ -52,8 +74,8 @@ class Expeditee {
     }
     
     update() {
-        if (this.carried.item !== null) {
-            this.carried.item.move(this.x - this.carried.startX, this.y - this.carried.startY);
+        if (this.carried) {
+            this.carried.update();
         }
     }
     
@@ -61,11 +83,7 @@ class Expeditee {
         if (!item || item == this.root) {
             return;
         }
-        this.carried.item = item;
-        this.carried.startX = this.x - item.x;
-        this.carried.startY = this.y - item.y;
-        this.carried.originalZ = item.element.style.zIndex;
-        item.element.style.zIndex = "9001";
+        this.carried = new CarriedItem(this, item);
         this.update();
     }
     
@@ -77,31 +95,26 @@ class Expeditee {
     }
     
     place() {
-        if (!this.carried.item) {
-            return;
-        }
         this.update();
-        this.carried.item.element.style.zIndex = this.carried.originalZ;
-        this.carried.item.placeDown(this.x, this.y);
-        this.carried.item = null;
+        if (this.carried) {
+            this.carried.place();
+        }
     }
     
     stamp() {
-        if (!this.carried.item) {
-            return;
+        this.update();
+        if (this.carried) {
+            this.carried.stamp();
         }
-        var clone = this.carried.item.clone();
-        clone.element.style.zIndex = this.carried.originalZ;
-        clone.placeDown(this.x, this.y, this.carried.item);
     }
     
     remove(target) {
-        var item = this.carried.item || Item.find(target);
+        var item = this.carried ? this.carried.item : Item.find(target);
         if (!item || item == this.root) {
             return;
         }
         item.remove();
-        this.carried.item = null;
+        this.carried = null;
     }
     
     mouseDown(e) {
@@ -156,7 +169,7 @@ class Expeditee {
                 this.remove(e.target);
                 this.right = false;
             } else {
-                if (this.carried.item !== null) {
+                if (this.carried !== null) {
                     this.place();
                 } else {
                     this.pickup(Item.find(e.target));
@@ -173,7 +186,7 @@ class Expeditee {
                 this.remove(e.target);
                 this.left = false;
             } else {
-                if (this.carried.item !== null) {
+                if (this.carried !== null) {
                     this.stamp();
                 } else if (e.altKey) {
                     // create a container under the mouse
