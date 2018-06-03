@@ -43,6 +43,48 @@ class CarriedItem {
         clone.element.style.zIndex = this.startZ;
         clone.placeDown(this.context.x, this.context.y, this.item);
     }
+    
+    delete() {
+        this.item.remove();
+    }
+}
+
+class CarriedRectangle {
+    constructor(context, parent) {
+        this.context = context;
+        var element = document.createElement('DIV');
+        context.hover = element;
+        element.style.backgroundColor = "rgb(" + Math.floor(Math.random() * 255) + "," + Math.floor(Math.random() * 255) + "," + Math.floor(Math.random() * 255) + ")";
+        parent.element.appendChild(element);
+        this.item = new Item(context, element, parent);
+        var pos = this.item.clientPos(context.x, context.y);
+        this.startX = pos.x;
+        this.startY = pos.y;
+        this.item.move(this.startX, this.startY);
+    }
+    
+    update() {
+        var pos = this.item.clientPos(this.context.x, this.context.y);
+        var x = Math.min(this.startX, pos.x),
+            y = Math.min(this.startY, pos.y),
+            w = Math.abs(pos.x - this.startX),
+            h = Math.abs(pos.y - this.startY);
+        this.item.move(x, y);
+        this.item.element.style.width = w + "px";
+        this.item.element.style.height = h + "px";
+    }
+    
+    place() {
+        this.context.carried = null;
+    }
+    
+    stamp() {
+        this.place(); // stamping a rectangle while we're creating it doesn't make sense
+    }
+    
+    delete() {
+        this.item.remove();
+    }
 }
 
 class Expeditee {
@@ -89,22 +131,14 @@ class Expeditee {
         if (this.carried) {
             this.carried.update();
             this.carried.stamp();
-        } else if (e.altKey) {
-            // create a container under the mouse
-            // (currently haven't implemented resizing)
-            var parent = Item.container(e.target) || this.root;
-            var element = document.createElement('DIV');
-            element.style.width = "100px";
-            element.style.height = "100px";
-            element.style.backgroundColor = "rgb(" + Math.floor(Math.random() * 255) + "," + Math.floor(Math.random() * 255) + "," + Math.floor(Math.random() * 255) + ")";
-            parent.element.appendChild(element);
-            var item = new Item(this, element, parent);
-            var pos = item.clientPos(this.x - item.width / 2, this.y - item.height / 2);
-            item.move(pos.x, pos.y);
-            this.hover = element;
         } else {
             var item = Item.find(e.target);
-            if (item && item != this.root) {
+            if (!item) {
+                return;
+            }
+            if (item == this.root || e.altKey) {
+                this.carried = new CarriedRectangle(this, item);
+            } else {
                 this.carried = new CarriedItem(this, item.clone());
             }
         }
@@ -112,7 +146,7 @@ class Expeditee {
     
     leftRightClick(e) {
         if (this.carried) {
-            this.carried.item.remove();
+            this.carried.delete();
             this.carried = null;
         } else {
             var item = Item.find(e.target);
