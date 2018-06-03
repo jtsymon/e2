@@ -4,21 +4,6 @@
 
 var Root;
 
-/**
- * @param {number} x
- * @param {number} y
- * @param {Item} container
- */
-function clientPos(x, y, container) {
-    if (!!container) {
-        while (container !== Root) {
-            x -= container.x;
-            y -= container.y;
-            container = container.parent;
-        }
-    }
-    return { x: x, y: y };
-}
 
 /**
  * @param {number} x
@@ -264,7 +249,7 @@ class Expeditee {
                     element.style.backgroundColor = "rgb(" + Math.floor(Math.random() * 255) + "," + Math.floor(Math.random() * 255) + "," + Math.floor(Math.random() * 255) + ")";
                     parent.element.appendChild(element);
                     item = new Item(parent, element);
-                    pos = clientPos(this.x - item.width / 2, this.y - item.height / 2, item.parent);
+                    pos = item.clientPos(this.x - item.width / 2, this.y - item.height / 2);
                     item.move(pos.x, pos.y);
                     this.hover = element;
                 } else {
@@ -358,7 +343,7 @@ class Expeditee {
                 element.contentEditable = "true";
                 parent.element.appendChild(element);
                 item = new Item(parent, element);
-                pos = clientPos(this.x - item.width / 2, this.y - item.height / 2, item.parent);
+                pos = item.clientPos(this.x - item.width / 2, this.y - item.height / 2);
                 item.move(pos.x, pos.y);
                 element.focus();
                 this.hover = element;
@@ -412,7 +397,7 @@ class Item {
         var rect = element.getBoundingClientRect();
         this.width = rect.width;
         this.height = rect.height;
-        rect = clientPos(rect.left, rect.top, parent);
+        rect = this.clientPos(rect.left, rect.top);
         this.x = rect.x;
         this.y = rect.y;
         element.e2_item = this;
@@ -502,7 +487,7 @@ class Item {
         if (new_parent !== this.parent) {
             // find the correct position
             pos = absPos(this.x, this.y, this.parent);
-            pos = clientPos(pos.x, pos.y, new_parent);
+            pos = this.clientPos(pos.x, pos.y, new_parent);
             // remove the item from it's old parent
             this.parent.element.removeChild(this.element);
             index = this.parent.children.indexOf(this);
@@ -552,6 +537,15 @@ class Item {
         internal_remove(this);
     }
 
+    clientPos(x, y, container = this.parent) {
+        while (container) {
+            x -= container.x;
+            y -= container.y;
+            container = container.parent;
+        }
+        return { x: x, y: y };
+    }
+
     // Gets the parent item for an element that is a child of a non-container element
     static find(element) {
         while (element && !element.e2_item) {
@@ -586,7 +580,9 @@ window.onload = function () {
         depth: 0,
         element: document.body,
         children: [],
-        containers: []
+        containers: [],
+        x: 0,
+        y: 0
     };
     document.body.e2_item = Root;
     createItems(Root);
