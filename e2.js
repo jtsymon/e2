@@ -202,6 +202,36 @@ window.onkeypress = function (e) {
     return true;
 };
 
+window.ondragover = function(e) {
+    e.preventDefault();
+}
+
+function dropElements(e, source) {
+    var parent = getItemOrRoot(e.target),
+        temp = document.createElement('DIV'),
+        retry = 100;
+    temp.innerHTML = source;
+    for (var i = 0; i < temp.children.length; i++) {
+        var element = temp.children[i],
+            retry = 3;
+        parent.element.appendChild(element);
+        var item = new Item(parent, element);
+        item.move(e.x, e.y);
+    }
+}
+
+window.ondrop = function(e) {
+    e.preventDefault();
+    for (var i = 0; i < e.dataTransfer.items.length; i++) {
+        var data = e.dataTransfer.items[i];
+        if (data.kind == "string" && data.type == "text/html")
+        {
+            data.getAsString(source => dropElements(e, source));
+            break;
+        }
+    }
+}
+
 window.Mouse = {
     /**
      * @type {Item}
