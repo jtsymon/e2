@@ -130,13 +130,11 @@ class Expeditee {
     }
     
     load() {
-        var html = window.localStorage[this.storageId()];
-        if (html) {
-            this.root.children = [];
-            this.root.containers = [];
-            this.root.element.innerHTML = html;
-            this.root.createItems();
-        }
+        this.root.children = [];
+        this.root.containers = [];
+        var html = window.localStorage[this.storageId()] || "";
+        this.root.element.innerHTML = html;
+        this.root.createItems();
     }
     
     save() {
@@ -158,7 +156,21 @@ class Expeditee {
     reset() {
         this.root = null;
         window.localStorage.clear();
+        window.location.hash = "";
         window.location.reload();
+    }
+    
+    allocatePageId() {
+        var pageCount = Number(window.localStorage["pageCount"]);
+        if (Number.isNaN(pageCount)) {
+            pageCount = Number(this.id);
+        }
+        if (Number.isNaN(pageCount)) {
+            pageCount = 0;
+        }
+        pageCount += 1;
+        window.localStorage["pageCount"] = pageCount;
+        return pageCount;
     }
     
     leftClick(e) {
@@ -167,7 +179,21 @@ class Expeditee {
             this.carried.place();
         } else {
             var item = Item.find(e.target);
-            if (item && item != this.root) {
+            if (!item) {
+                return;
+            }
+            if (item === this.root) {
+                window.history.back();
+            } else if (e.altKey) {
+                if (!item.element.hasAttribute("data-pageId")) {
+                    var newPage = this.allocatePageId();
+                    item.element.setAttribute("data-pageId", newPage);
+                }
+                this.save();
+                this.id = item.element.getAttribute("data-pageId");
+                window.location.hash = this.id;
+                this.load();
+            } else {
                 this.carried = new CarriedItem(this, item);
             }
         }
