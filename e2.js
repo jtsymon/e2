@@ -6,22 +6,6 @@ var Root;
 
 
 /**
- * @param {number} x
- * @param {number} y
- * @param {Item} container
- */
-function absPos(x, y, container) {
-    if (!!container) {
-        while (container !== Root) {
-            x += container.x;
-            y += container.y;
-            container = container.parent;
-        }
-    }
-    return { x: x, y: y };
-}
-
-/**
  * Sets position:relative on elements that are children of a non-container element
  * @param {Item} parent
  */
@@ -486,7 +470,7 @@ class Item {
         new_parent = internal_find_container(x, y, Root);
         if (new_parent !== this.parent) {
             // find the correct position
-            pos = absPos(this.x, this.y, this.parent);
+            pos = this.absPos(this.x, this.y);
             pos = this.clientPos(pos.x, pos.y, new_parent);
             // remove the item from it's old parent
             this.parent.element.removeChild(this.element);
@@ -541,6 +525,15 @@ class Item {
         while (container) {
             x -= container.x;
             y -= container.y;
+            container = container.parent;
+        }
+        return { x: x, y: y };
+    }
+
+    absPos(x, y, container = this.parent) {
+        while (container) {
+            x += container.x;
+            y += container.y;
             container = container.parent;
         }
         return { x: x, y: y };
