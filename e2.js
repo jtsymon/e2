@@ -18,6 +18,10 @@ function returnTrue(e) {
     return true;
 }
 
+function pageFromHash() {
+    return window.location.hash.slice(1);
+}
+
 class CarriedItem {
     constructor(context, item) {
         this.context = context;
@@ -88,7 +92,7 @@ class CarriedRectangle {
 }
 
 class Expeditee {
-    constructor(root) {
+    constructor(root, id) {
         this.click = {
             x: 0,
             y: 0,
@@ -102,7 +106,11 @@ class Expeditee {
         this.edit = null;
         this.hover = null;
         this.focus = null;
-        this.id = 0;
+        if (id === undefined || id === "") {
+            this.id = 0;
+        } else {
+            this.id = id;
+        }
         
         this.root = new Item(this, root);
         this.load();
@@ -134,6 +142,17 @@ class Expeditee {
     save() {
         var html = this.root.element.innerHTML;
         window.localStorage[this.storageId()] = html;
+    }
+    
+    navigate(id) {
+        if (id === undefined || id === "") {
+            id = 0;
+        }
+        if (id != this.id) {
+            this.save();
+            this.id = id;
+            this.load();
+        }
     }
     
     reset() {
@@ -629,7 +648,9 @@ window.onload = function() {
 `;
     }
     
-    window.Expeditee = new Expeditee(document.body);
+    window.Expeditee = new Expeditee(document.body, pageFromHash());
+    
+    window.onhashchange = () => window.Expeditee.navigate(pageFromHash());
     
     window.onunload = () => window.Expeditee.save();
 };
