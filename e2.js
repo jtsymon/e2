@@ -74,38 +74,6 @@ function createItems(parent) {
     }
 }
 
-/**
- * Gets the parent item for an element that is a child of a non-container element
- * @param {Element} element
- * @return {Item}
- */
-function getItem(element) {
-    while (element && !element.e2_item) {
-        element = element.parentElement;
-    }
-    if (!element) {
-        return null;
-    }
-    return element.e2_item;
-}
-
-function getContainer(element) {
-    while (element && !element.e2_item) {
-        element = element.parentElement;
-    }
-    if (!element || !element.e2_item) {
-        return Root;
-    }
-    var item = element.e2_item;
-    while (item && !item.isContainer) {
-        item = item.parent;
-    }
-    return item || Root;
-}
-
-function getItemOrRoot(element) {
-    return getItem(element) || Root;
-}
 
 /**
  * Finds the value of an inherited attribute
@@ -207,7 +175,7 @@ class Expeditee {
     }
     
     remove(target) {
-        var item = this.carried.item || getItem(target);
+        var item = this.carried.item || Item.find(target);
         if (!item) {
             return;
         }
@@ -231,7 +199,7 @@ class Expeditee {
             this.right = true;
             break;
         }
-        var item = getItem(e.target);
+        var item = Item.find(e.target);
         return !(!item || item.isContainer || e.target.textContent.length === 0);
     }
     
@@ -270,7 +238,7 @@ class Expeditee {
                 if (this.carried.item !== null) {
                     this.place();
                 } else {
-                    this.pickup(getItem(e.target));
+                    this.pickup(Item.find(e.target));
                 }
             }
             break;
@@ -289,7 +257,7 @@ class Expeditee {
                 } else if (e.altKey) {
                     // create a container under the mouse
                     // (currently haven't implemented resizing)
-                    parent = getContainer(e.target);
+                    parent = Item.container(e.target) || Root;
                     element = document.createElement('DIV');
                     element.style.width = "100px";
                     element.style.height = "100px";
@@ -300,7 +268,7 @@ class Expeditee {
                     item.move(pos.x, pos.y);
                     this.hover = element;
                 } else {
-                    this.clone(getItem(e.target));
+                    this.clone(Item.find(e.target));
                 }
             }
             break;
@@ -383,7 +351,7 @@ class Expeditee {
             this.edit = this.hover;
             if (!this.positionCaret()) {
                 // create a text element under the cursor
-                var parent = getItemOrRoot(e.target),
+                var parent = Item.find(e.target) || Root,
                     element = document.createElement('P'),
                     item,
                     pos;
@@ -402,7 +370,7 @@ class Expeditee {
     }
 
     dropElements(e, source) {
-        var parent = getItemOrRoot(e.target),
+        var parent = Item.find(e.target) || Root,
             temp = document.createElement('DIV'),
             retry = 100;
         temp.innerHTML = source;
@@ -582,6 +550,32 @@ class Item {
             this.parent.children.splice(index, 1);
         }
         internal_remove(this);
+    }
+
+    // Gets the parent item for an element that is a child of a non-container element
+    static find(element) {
+        while (element && !element.e2_item) {
+            element = element.parentElement;
+        }
+        if (!element) {
+            return null;
+        }
+        return element.e2_item;
+    }
+    
+    // Gets the first ancestor container item
+    static container(element) {
+        while (element && !element.e2_item) {
+            element = element.parentElement;
+        }
+        if (!element || !element.e2_item) {
+            return null;
+        }
+        var item = element.e2_item;
+        while (item && !item.isContainer) {
+            item = item.parent;
+        }
+        return item;
     }
 }
 
