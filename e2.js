@@ -102,8 +102,10 @@ class Expeditee {
         this.edit = null;
         this.hover = null;
         this.focus = null;
+        this.id = 0;
         
         this.root = new Item(this, root);
+        this.load();
         root.oncontextmenu = prevent;
         root.onmousedown = this.mouseDown.bind(this);
         root.onmouseup = this.mouseUp.bind(this);
@@ -113,6 +115,31 @@ class Expeditee {
         root.onkeydown = this.keyDown.bind(this);
         root.ondragover = prevent;
         root.ondrop = this.tryDrop.bind(this);
+    }
+    
+    storageId() {
+        return "page" + this.id;
+    }
+    
+    load() {
+        var html = window.localStorage[this.storageId()];
+        if (html) {
+            this.root.children = [];
+            this.root.containers = [];
+            this.root.element.innerHTML = html;
+            this.root.createItems();
+        }
+    }
+    
+    save() {
+        var html = this.root.element.innerHTML;
+        window.localStorage[this.storageId()] = html;
+    }
+    
+    reset() {
+        this.root = null;
+        window.localStorage.clear();
+        window.location.reload();
     }
     
     leftClick(e) {
@@ -582,5 +609,27 @@ class Item {
 }
 
 window.onload = function() {
+    if (!window.localStorage["page0"]) {
+        window.localStorage["page0"] = `
+<div style="background-color:green; width:500px; height:250px; left:10px;">
+    <h1 style="top:10px; left: 10px;">Expeditee</h2>
+    <img style="top:100px; left:10px"
+            src="http://d.thumbs.redditmedia.com/gnJOYzt8zSTI2EH-.png" />
+    <div style="background-color:red; top:100px; left:100px; width:420px; height:200px;">
+        <h2>Instructions</h2>
+        <ul style="top:50px; left:30px;">
+            <li>Left click to move elements
+            <li>Right click to clone elements
+            <li>Left+Right click to delete elements
+            <li>Right click on background (or with alt modifier) to draw rectangles
+            <li>Type anywhere to create text
+        </ul>
+    </div>
+</div>
+`;
+    }
+    
     window.Expeditee = new Expeditee(document.body);
+    
+    window.onunload = () => window.Expeditee.save();
 };
