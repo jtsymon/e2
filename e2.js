@@ -2,53 +2,7 @@
 /*global e2 */
 "use strict";
 
-var Root;
-
-
-/**
- * Sets position:relative on elements that are children of a non-container element
- * @param {Item} parent
- */
-function nonContainer(item) {
-    function relativePosition(parent) {
-        var i;
-        for (i = 0; i < parent.children.length; i += 1) {
-            parent.children[i].style.position = "relative";
-            parent.children[i].e2_owner = item;
-            relativePosition(parent.children[i]);
-        }
-    }
-    item.element.contentEditable = true;
-    relativePosition(item.element);
-}
-
-/**
- * Creates items beneath an element
- * @param {Item} parent
- */
-function createItems(parent) {
-    if (!parent.isContainer) {
-        nonContainer(parent);
-        return;
-    }
-    var i,
-        rect,
-        item,
-        container,
-        pos;
-    for (i = 0; i < parent.element.children.length; i += 1) {
-        if (!parent.element.children[i].e2_item) {
-            createItems(new Item(parent, parent.element.children[i]));
-        }
-    }
-}
-
-
-/**
- * Finds the value of an inherited attribute
- * @param {Element} element
- * @param {String} attribute
- */
+// Finds the value of an inherited attribute
 function getAttr(element, attribute) {
     while (element.parentElement && element[attribute] === "inherit") {
         element = element.parentElement;
@@ -56,9 +10,6 @@ function getAttr(element, attribute) {
     return element[attribute];
 }
 
-/**
- * @param {Event} e
- */
 function prevent(e) {
     e.preventDefault();
 }
@@ -88,6 +39,7 @@ class Expeditee {
         this.hover = null;
         this.focus = null;
         
+        this.root = new Item(this, root);
         root.oncontextmenu = prevent;
         root.onmousedown = this.mouseDown.bind(this);
         root.onmouseup = this.mouseUp.bind(this);
@@ -106,7 +58,7 @@ class Expeditee {
     }
     
     pickup(item) {
-        if (!item) {
+        if (!item || item == this.root) {
             return;
         }
         this.carried.item = item;
@@ -118,7 +70,7 @@ class Expeditee {
     }
     
     clone(item) {
-        if (!item) {
+        if (!item || item == this.root) {
             return;
         }
         this.pickup(item.clone());
@@ -145,7 +97,7 @@ class Expeditee {
     
     remove(target) {
         var item = this.carried.item || Item.find(target);
-        if (!item) {
+        if (!item || item == this.root) {
             return;
         }
         item.remove();
@@ -181,7 +133,7 @@ class Expeditee {
             item,
             pos;
         if (e.target !== this.click.element || Math.abs(e.clientX - this.click.x) > 10 || Math.abs(e.clientY - this.click.y) > 10 || selection.toString().length > 0) {
-            console.log("this moved too far, aborting action");
+            console.log("Mouse moved too far, aborting action");
             // deselect selected text when we click
             if (!selection.containsNode(e.target, true) ||
                     selection.anchorNode.nodeName === "DIV" || selection.anchorNode.nodeName === "HTML" ||
@@ -226,13 +178,13 @@ class Expeditee {
                 } else if (e.altKey) {
                     // create a container under the mouse
                     // (currently haven't implemented resizing)
-                    parent = Item.container(e.target) || Root;
+                    parent = Item.container(e.target) || this.root;
                     element = document.createElement('DIV');
                     element.style.width = "100px";
                     element.style.height = "100px";
                     element.style.backgroundColor = "rgb(" + Math.floor(Math.random() * 255) + "," + Math.floor(Math.random() * 255) + "," + Math.floor(Math.random() * 255) + ")";
                     parent.element.appendChild(element);
-                    item = new Item(parent, element);
+                    item = new Item(this, element, parent);
                     pos = item.clientPos(this.x - item.width / 2, this.y - item.height / 2);
                     item.move(pos.x, pos.y);
                     this.hover = element;
@@ -320,13 +272,13 @@ class Expeditee {
             this.edit = this.hover;
             if (!this.positionCaret()) {
                 // create a text element under the cursor
-                var parent = Item.find(e.target) || Root,
+                var parent = Item.find(e.target) || this.root,
                     element = document.createElement('P'),
                     item,
                     pos;
                 element.contentEditable = "true";
                 parent.element.appendChild(element);
-                item = new Item(parent, element);
+                item = new Item(this, element, parent);
                 pos = item.clientPos(this.x - item.width / 2, this.y - item.height / 2);
                 item.move(pos.x, pos.y);
                 element.focus();
@@ -339,7 +291,7 @@ class Expeditee {
     }
 
     dropElements(e, source) {
-        var parent = Item.find(e.target) || Root,
+        var parent = Item.find(e.target) || this.root,
             temp = document.createElement('DIV'),
             retry = 100;
         temp.innerHTML = source;
@@ -347,7 +299,7 @@ class Expeditee {
             var element = temp.children[i],
                 retry = 3;
             parent.element.appendChild(element);
-            var item = new Item(parent, element);
+            var item = new Item(this, element, parent);
             item.move(e.x, e.y);
         }
     }
@@ -366,12 +318,27 @@ class Expeditee {
 }
 
 class Item {
-    constructor(parent, element) {
-        this.isContainer = (element.nodeName === "DIV");
-        this.depth = parent.depth + 1;
+    constructor(context, element, parent) {
         this.element = element;
-        this.parent = parent;
+        this.context = context;
         this.children = [];
+        if (parent === undefined) {
+            this.isContainer = true;
+            this.parent_container = null;
+            this.containers = [];
+            this.depth = 0;
+            this.parent = null;
+        } else {
+            this.isContainer = (element.nodeName === "DIV");
+            this.depth = parent.depth + 1;
+            this.parent = parent;
+            parent.children.push(this);
+            if (this.isContainer) {
+                this.parent_container = null;
+                this.containers = [];
+                this.findContainer();
+            }
+        }
         if (element.style.left === "") {
             element.style.left = "0px";
         }
@@ -386,12 +353,7 @@ class Item {
         this.y = rect.y;
         element.e2_item = this;
         element.style.position = "absolute";
-        parent.children.push(this);
-        if (this.isContainer) {
-            this.parent_container = null;
-            this.containers = [];
-            this.findContainer();
-        }
+        this.createItems();
     }
     
     move(x, y) {
@@ -467,7 +429,7 @@ class Item {
             }
             return best;
         }
-        new_parent = internal_find_container(x, y, Root);
+        new_parent = internal_find_container(x, y, this.context.root);
         if (new_parent !== this.parent) {
             // find the correct position
             pos = this.absPos(this.x, this.y);
@@ -491,12 +453,9 @@ class Item {
     }
     
     clone() {
-        var element = this.element.cloneNode(true),
-            clone;
+        var element = this.element.cloneNode(true);
         this.parent.element.appendChild(element);
-        clone = new Item(this.parent, element);
-        createItems(clone);
-        return clone;
+        return new Item(this.context, element, this.parent);
     }
     
     remove() {
@@ -539,6 +498,29 @@ class Item {
         return { x: x, y: y };
     }
 
+    // Sets position:relative on elements that are children of a non-container element
+    relativePosition(element = this.element) {
+        for (var i = 0; i < element.children.length; i++) {
+            element.children[i].style.position = "relative";
+            element.children[i].e2_owner = this;
+            this.relativePosition(element.children[i]);
+        }
+    }
+    
+    // Creates child items beneath an item
+    createItems() {
+        if (this.isContainer) {
+            for (var i = 0; i < this.element.children.length; i++) {
+                if (!this.element.children[i].e2_item) {
+                    new Item(this.context, this.element.children[i], this);
+                }
+            }
+        } else {
+            this.element.contentEditable = true;
+            this.relativePosition();
+        }
+    }
+
     // Gets the parent item for an element that is a child of a non-container element
     static find(element) {
         while (element && !element.e2_item) {
@@ -566,17 +548,6 @@ class Item {
     }
 }
 
-window.onload = function () {
-    window.Expeditee = new Expeditee(window);
-    window.Root = {
-        isContainer: true,
-        depth: 0,
-        element: document.body,
-        children: [],
-        containers: [],
-        x: 0,
-        y: 0
-    };
-    document.body.e2_item = Root;
-    createItems(Root);
+window.onload = function() {
+    window.Expeditee = new Expeditee(document.body);
 };
