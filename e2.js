@@ -1,5 +1,6 @@
 /*jslint browser: true, devel: true */
 /*global e2 */
+"use strict";
 
 var Item,
     Mouse,
@@ -11,7 +12,6 @@ var Item,
  * @param {Item} container
  */
 function clientPos(x, y, container) {
-    "use strict";
     if (!!container) {
         while (container !== Root) {
             x -= container.x;
@@ -28,7 +28,6 @@ function clientPos(x, y, container) {
  * @param {Item} container
  */
 function absPos(x, y, container) {
-    "use strict";
     if (!!container) {
         while (container !== Root) {
             x += container.x;
@@ -44,7 +43,6 @@ function absPos(x, y, container) {
  * @param {Item} parent
  */
 function nonContainer(item) {
-    "use strict";
     function relativePosition(parent) {
         var i;
         for (i = 0; i < parent.children.length; i += 1) {
@@ -62,7 +60,6 @@ function nonContainer(item) {
  * @param {Item} parent
  */
 function createItems(parent) {
-    "use strict";
     if (!parent.isContainer) {
         nonContainer(parent);
         return;
@@ -85,7 +82,6 @@ function createItems(parent) {
  * @return {Item}
  */
 function getItem(element) {
-    "use strict";
     while (element && !element.e2_item) {
         element = element.parentElement;
     }
@@ -96,7 +92,6 @@ function getItem(element) {
 }
 
 function getContainer(element) {
-    "use strict";
     while (element && !element.e2_item) {
         element = element.parentElement;
     }
@@ -111,7 +106,6 @@ function getContainer(element) {
 }
 
 function getItemOrRoot(element) {
-    "use strict";
     return getItem(element) || Root;
 }
 
@@ -121,7 +115,6 @@ function getItemOrRoot(element) {
  * @param {String} attribute
  */
 function getAttr(element, attribute) {
-    "use strict";
     while (element.parentElement && element[attribute] === "inherit") {
         element = element.parentElement;
     }
@@ -132,7 +125,6 @@ function getAttr(element, attribute) {
  * @param {Event} e
  */
 function prevent(e) {
-    "use strict";
     e.preventDefault();
 }
 
@@ -140,7 +132,6 @@ function prevent(e) {
  * @param {KeyboardEvent} e
  */
 window.onkeyup = function (e) {
-    "use strict";
     return true;
 };
 
@@ -148,7 +139,6 @@ window.onkeyup = function (e) {
  * @param {KeyboardEvent} e
  */
 window.onkeydown = function (e) {
-    "use strict";
     // start typing wherever the cursor is
     function positionCaret() {
         var caret,
@@ -198,7 +188,6 @@ window.onkeydown = function (e) {
  * @param {KeyboardEvent} e
  */
 window.onkeypress = function (e) {
-    "use strict";
     return true;
 };
 
@@ -255,7 +244,6 @@ window.Mouse = {
     hover: null,
     focus: null,
     update: function () {
-        "use strict";
         if (Mouse.carried.item !== null) {
             Mouse.carried.item.move(Mouse.x - Mouse.carried.startX, Mouse.y - Mouse.carried.startY);
         }
@@ -264,7 +252,6 @@ window.Mouse = {
      * @param {Item} item
      */
     pickup: function (item) {
-        "use strict";
         if (!item) {
             return;
         }
@@ -279,14 +266,12 @@ window.Mouse = {
      * @param {Item} item
      */
     clone: function (item) {
-        "use strict";
         if (!item) {
             return;
         }
         Mouse.pickup(item.clone());
     },
     place: function () {
-        "use strict";
         if (!Mouse.carried.item) {
             return;
         }
@@ -296,7 +281,6 @@ window.Mouse = {
         Mouse.carried.item = null;
     },
     stamp: function () {
-        "use strict";
         if (!Mouse.carried.item) {
             return;
         }
@@ -308,7 +292,6 @@ window.Mouse = {
      * @param {Element} target
      */
     remove: function (target) {
-        "use strict";
         var item = Mouse.carried.item || getItem(target);
         if (!item) {
             return;
@@ -320,7 +303,6 @@ window.Mouse = {
      * @param {MouseEvent} e
      */
     down: function (e) {
-        "use strict";
         Mouse.x = e.clientX;
         Mouse.y = e.clientY;
         if (!Mouse.left && !Mouse.right) {
@@ -343,7 +325,6 @@ window.Mouse = {
      * @param {MouseEvent} e
      */
     up: function (e) {
-        "use strict";
         Mouse.x = e.clientX;
         Mouse.y = e.clientY;
         var selection = window.getSelection(),
@@ -418,7 +399,6 @@ window.Mouse = {
      * @param {MouseEvent} e
      */
     move: function (e) {
-        "use strict";
         Mouse.x = e.clientX;
         Mouse.y = e.clientY;
         if (Mouse.hover !== e.target) {
@@ -473,7 +453,6 @@ window.Mouse = {
  * @param {Element} element
  */
 function Item(parent, element) {
-    "use strict";
     this.isContainer = (element.nodeName === "DIV");
     this.depth = parent.depth + 1;
     this.element = element;
@@ -507,7 +486,6 @@ function Item(parent, element) {
  * @param {number} y
  */
 Item.prototype.move = function (x, y) {
-    "use strict";
     this.element.style.left = x + "px";
     this.element.style.top = y + "px";
     this.x = x;
@@ -518,7 +496,6 @@ Item.prototype.move = function (x, y) {
  * @this {Item}
  */
 Item.prototype.findContainer = function () {
-    "use strict";
     if (!this.isContainer) {
         return;
     }
@@ -557,7 +534,6 @@ Item.prototype.findContainer = function () {
  * @param {Item} exclude
  */
 Item.prototype.placeDown = function (x, y, exclude) {
-    "use strict";
     var new_parent,
         pos,
         index,
@@ -623,7 +599,6 @@ Item.prototype.placeDown = function (x, y, exclude) {
  * @this {Item}
  */
 Item.prototype.clone = function () {
-    "use strict";
     var element = this.element.cloneNode(true),
         clone;
     this.parent.element.appendChild(element);
@@ -636,7 +611,6 @@ Item.prototype.clone = function () {
  * @this {Item}
  */
 Item.prototype.remove = function () {
-    "use strict";
     /**
      * Remove any references to removed items (container references)
      * @param {Item} item
@@ -662,7 +636,6 @@ Item.prototype.remove = function () {
 };
 
 window.onload = function () {
-    "use strict";
     window.oncontextmenu = prevent;
     window.onmousedown = Mouse.down;
     window.onmouseup = Mouse.up;
